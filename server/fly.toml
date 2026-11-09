@@ -1,0 +1,36 @@
+# Fly.io deployment for the Huddle server. Run `fly launch --no-deploy --copy-config` from this folder,
+# then follow "Host the server" in the README. Change `app` to the name Fly assigns you.
+app = 'huddle-api'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  HOST = '0.0.0.0'
+  PORT = '8787'
+  DATA_PATH = '/app/data/state.bin'
+
+# Account settings (ESPN cookies, Yahoo tokens) live encrypted on this volume.
+[[mounts]]
+  source = 'huddle_data'
+  destination = '/app/data'
+
+# Nothing runs in the background, so the machine can sleep between visits.
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = '10s'
+    interval = '30s'
+    method = 'GET'
+    path = '/health'
+    timeout = '5s'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

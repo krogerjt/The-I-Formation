@@ -1,0 +1,10 @@
+.DS_Store
+.env
+server/data/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+Huddle.xcodeproj/
+ios/Config/
+ios/Local.xcconfig
+node_modules/

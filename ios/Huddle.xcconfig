@@ -1,0 +1,8 @@
+// The Huddle server the app talks to, and the token it sends. "//" starts a comment in xcconfig files,
+// so URLs are written with "/$()/". Put real values in ios/Local.xcconfig (git-ignored), for example:
+//   HUDDLE_SERVER_URL = https:/$()/huddle-api.fly.dev
+//   HUDDLE_APP_TOKEN = the APP_TOKEN you set on the server
+HUDDLE_SERVER_URL = https:/$()/huddle-server.invalid
+HUDDLE_APP_TOKEN =
+
+#include? "Local.xcconfig"

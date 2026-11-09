@@ -1,0 +1,200 @@
+{
+  "season": 2026,
+  "week": 10,
+  "updatedAt": "2026-11-08T20:00:00.000Z",
+  "errors": [],
+  "groups": [
+    {
+      "game": {
+        "id": "401",
+        "name": "KC at BUF",
+        "kickoff": "2026-11-08T18:00Z",
+        "state": "live",
+        "detail": "10:12 - 3rd",
+        "home": {
+          "team": "BUF",
+          "score": 17
+        },
+        "away": {
+          "team": "KC",
+          "score": 21
+        }
+      },
+      "players": [
+        {
+          "key": "sleeper:4046",
+          "name": "Patrick Mahomes",
+          "position": "QB",
+          "nflTeam": "KC",
+          "gameId": "401",
+          "rootFor": 2,
+          "rootAgainst": 1,
+          "net": 1,
+          "leagues": [
+            {
+              "platform": "sleeper",
+              "leagueName": "Dynasty Bros",
+              "side": "me",
+              "starter": true,
+              "points": 24.3
+            },
+            {
+              "platform": "espn",
+              "leagueName": "Work League",
+              "side": "opponent",
+              "starter": true,
+              "points": 24.3
+            },
+            {
+              "platform": "yahoo",
+              "leagueName": "Family League",
+              "side": "me",
+              "starter": true,
+              "points": 24.3
+            }
+          ],
+          "verdict": "for"
+        },
+        {
+          "key": "DEF:KC",
+          "name": "Chiefs D/ST",
+          "position": "DEF",
+          "nflTeam": "KC",
+          "gameId": "401",
+          "rootFor": 0,
+          "rootAgainst": 1,
+          "net": -1,
+          "leagues": [
+            {
+              "platform": "espn",
+              "leagueName": "Work League",
+              "side": "opponent",
+              "starter": true,
+              "points": 6
+            }
+          ],
+          "verdict": "against"
+        },
+        {
+          "key": "sleeper:4984",
+          "name": "Josh Allen",
+          "position": "QB",
+          "nflTeam": "BUF",
+          "gameId": "401",
+          "rootFor": 1,
+          "rootAgainst": 1,
+          "net": 0,
+          "leagues": [
+            {
+              "platform": "sleeper",
+              "leagueName": "Dynasty Bros",
+              "side": "opponent",
+              "starter": true,
+              "points": 30.1
+            },
+            {
+              "platform": "espn",
+              "leagueName": "Work League",
+              "side": "me",
+              "starter": true,
+              "points": 30.1
+            },
+            {
+              "platform": "yahoo",
+              "leagueName": "Family League",
+              "side": "me",
+              "starter": false,
+              "points": 30.1
+            }
+          ],
+          "verdict": "conflicted"
+        }
+      ]
+    },
+    {
+      "game": {
+        "id": "402",
+        "name": "ATL at DAL",
+        "kickoff": "2026-11-08T21:25Z",
+        "state": "scheduled",
+        "detail": "4:25 PM",
+        "home": {
+          "team": "DAL",
+          "score": 0
+        },
+        "away": {
+          "team": "ATL",
+          "score": 0
+        }
+      },
+      "players": [
+        {
+          "key": "sleeper:9509",
+          "name": "Bijan Robinson",
+          "position": "RB",
+          "nflTeam": "ATL",
+          "gameId": "402",
+          "rootFor": 0,
+          "rootAgainst": 1,
+          "net": -1,
+          "leagues": [
+            {
+              "platform": "sleeper",
+              "leagueName": "Dynasty Bros",
+              "side": "me",
+              "starter": false,
+              "points": 9
+            },
+            {
+              "platform": "espn",
+              "leagueName": "Work League",
+              "side": "me",
+              "starter": false,
+              "points": 9
+            },
+            {
+              "platform": "yahoo",
+              "leagueName": "Family League",
+              "side": "opponent",
+              "starter": true,
+              "points": 9
+            }
+          ],
+          "verdict": "against"
+        },
+        {
+          "key": "sleeper:6786",
+          "name": "CeeDee Lamb",
+          "position": "WR",
+          "nflTeam": "DAL",
+          "gameId": "402",
+          "rootFor": 1,
+          "rootAgainst": 1,
+          "net": 0,
+          "leagues": [
+            {
+              "platform": "sleeper",
+              "leagueName": "Dynasty Bros",
+              "side": "me",
+              "starter": true,
+              "points": 17.2
+            },
+            {
+              "platform": "espn",
+              "leagueName": "Work League",
+              "side": "opponent",
+              "starter": true,
+              "points": 17.2
+            }
+          ],
+          "verdict": "conflicted"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "rootFor": 1,
+    "rootAgainst": 2,
+    "conflicted": 2
+  }
+}
