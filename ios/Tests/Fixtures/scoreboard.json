@@ -1,0 +1,272 @@
+{
+  "season": 2026,
+  "week": 10,
+  "updatedAt": "2026-11-08T20:00:00.000Z",
+  "errors": [],
+  "games": [
+    {
+      "id": "401",
+      "name": "KC at BUF",
+      "kickoff": "2026-11-08T18:00Z",
+      "state": "live",
+      "detail": "10:12 - 3rd",
+      "home": {
+        "team": "BUF",
+        "score": 17
+      },
+      "away": {
+        "team": "KC",
+        "score": 21
+      }
+    },
+    {
+      "id": "402",
+      "name": "ATL at DAL",
+      "kickoff": "2026-11-08T21:25Z",
+      "state": "scheduled",
+      "detail": "4:25 PM",
+      "home": {
+        "team": "DAL",
+        "score": 0
+      },
+      "away": {
+        "team": "ATL",
+        "score": 0
+      }
+    }
+  ],
+  "matchups": [
+    {
+      "id": "sleeper:L1",
+      "platform": "sleeper",
+      "leagueId": "L1",
+      "leagueName": "Dynasty Bros",
+      "week": 10,
+      "me": {
+        "teamName": "Kroger Kings",
+        "owner": "jake",
+        "points": 41.5,
+        "projected": null,
+        "players": [
+          {
+            "name": "Patrick Mahomes",
+            "position": "QB",
+            "nflTeam": "KC",
+            "points": 24.3,
+            "starter": true,
+            "ids": {
+              "sleeper": "4046"
+            },
+            "key": "sleeper:4046",
+            "gameId": "401"
+          },
+          {
+            "name": "CeeDee Lamb",
+            "position": "WR",
+            "nflTeam": "DAL",
+            "points": 17.2,
+            "starter": true,
+            "ids": {
+              "sleeper": "6786"
+            },
+            "key": "sleeper:6786",
+            "gameId": "402"
+          },
+          {
+            "name": "Bijan Robinson",
+            "position": "RB",
+            "nflTeam": "ATL",
+            "points": 9,
+            "starter": false,
+            "ids": {
+              "sleeper": "9509"
+            },
+            "key": "sleeper:9509",
+            "gameId": "402"
+          }
+        ]
+      },
+      "opponent": {
+        "teamName": "sam",
+        "owner": "sam",
+        "points": 30.1,
+        "projected": null,
+        "players": [
+          {
+            "name": "Josh Allen",
+            "position": "QB",
+            "nflTeam": "BUF",
+            "points": 30.1,
+            "starter": true,
+            "ids": {
+              "sleeper": "4984"
+            },
+            "key": "sleeper:4984",
+            "gameId": "401"
+          }
+        ]
+      },
+      "result": {
+        "status": "live",
+        "margin": 11.4,
+        "leading": "me",
+        "myPlayersLeft": 1,
+        "theirPlayersLeft": 0
+      }
+    },
+    {
+      "id": "espn:123",
+      "platform": "espn",
+      "leagueId": "123",
+      "leagueName": "Work League",
+      "week": 10,
+      "me": {
+        "teamName": "Allen Wrench",
+        "owner": "jkroger",
+        "points": 30.1,
+        "projected": 98.7,
+        "players": [
+          {
+            "name": "Josh Allen",
+            "position": "QB",
+            "nflTeam": "BUF",
+            "points": 30.1,
+            "starter": true,
+            "ids": {
+              "espn": "3918298"
+            },
+            "key": "sleeper:4984",
+            "gameId": "401"
+          },
+          {
+            "name": "Bijan Robinson",
+            "position": "RB",
+            "nflTeam": "ATL",
+            "points": 9,
+            "starter": false,
+            "ids": {
+              "espn": "4430807"
+            },
+            "key": "sleeper:9509",
+            "gameId": "402"
+          }
+        ]
+      },
+      "opponent": {
+        "teamName": "Team Boss",
+        "owner": "boss",
+        "points": 55.4,
+        "projected": 101.2,
+        "players": [
+          {
+            "name": "Patrick Mahomes",
+            "position": "QB",
+            "nflTeam": "KC",
+            "points": 24.3,
+            "starter": true,
+            "ids": {
+              "espn": "3139477"
+            },
+            "key": "sleeper:4046",
+            "gameId": "401"
+          },
+          {
+            "name": "CeeDee Lamb",
+            "position": "WR",
+            "nflTeam": "DAL",
+            "points": 17.2,
+            "starter": true,
+            "ids": {
+              "espn": "4241389"
+            },
+            "key": "sleeper:6786",
+            "gameId": "402"
+          },
+          {
+            "name": "Chiefs D/ST",
+            "position": "DEF",
+            "nflTeam": "KC",
+            "points": 6,
+            "starter": true,
+            "ids": {},
+            "key": "DEF:KC",
+            "gameId": "401"
+          }
+        ]
+      },
+      "result": {
+        "status": "live",
+        "margin": -25.3,
+        "leading": "opponent",
+        "myPlayersLeft": 0,
+        "theirPlayersLeft": 1
+      }
+    },
+    {
+      "id": "yahoo:461.l.777",
+      "platform": "yahoo",
+      "leagueId": "461.l.777",
+      "leagueName": "Family League",
+      "week": 10,
+      "me": {
+        "teamName": "Yahoo Jake",
+        "owner": "Yahoo",
+        "points": 24.3,
+        "projected": 110.5,
+        "players": [
+          {
+            "name": "Patrick Mahomes",
+            "position": "QB",
+            "nflTeam": "KC",
+            "points": 24.3,
+            "starter": true,
+            "ids": {
+              "yahoo": "30123"
+            },
+            "key": "sleeper:4046",
+            "gameId": "401"
+          },
+          {
+            "name": "Josh Allen",
+            "position": "QB",
+            "nflTeam": "BUF",
+            "points": 30.1,
+            "starter": false,
+            "ids": {
+              "yahoo": "30977"
+            },
+            "key": "sleeper:4984",
+            "gameId": "401"
+          }
+        ]
+      },
+      "opponent": {
+        "teamName": "Cousin Ed",
+        "owner": "Cousin",
+        "points": 9,
+        "projected": 95,
+        "players": [
+          {
+            "name": "Bijan Robinson",
+            "position": "RB",
+            "nflTeam": "ATL",
+            "points": 9,
+            "starter": true,
+            "ids": {
+              "yahoo": "33393"
+            },
+            "key": "sleeper:9509",
+            "gameId": "402"
+          }
+        ]
+      },
+      "result": {
+        "status": "live",
+        "margin": 15.3,
+        "leading": "me",
+        "myPlayersLeft": 0,
+        "theirPlayersLeft": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "sleeper": {
+    "username": "jake"
+  },
+  "espn": [
+    {
+      "leagueId": "123",
+      "teamId": 1,
+      "hasCookies": false
+    }
+  ],
+  "yahoo": {
+    "connected": true
+  },
+  "yahooAvailable": true
+}
