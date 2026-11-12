@@ -65,6 +65,9 @@ cat > "$PLIST" <<EOF
 EOF
 
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+# bootout returns before the old instance is gone; bootstrapping too soon fails with "Input/output error".
+i=0
+while launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1 && [ $i -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
 launchctl bootstrap "$DOMAIN" "$PLIST"
 PORT=$(sed -n 's/^PORT=//p' "$ENV_FILE"); PORT=${PORT:-8787}
 sleep 2
