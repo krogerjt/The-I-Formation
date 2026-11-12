@@ -19,7 +19,7 @@ final class HuddleStore {
 
     init(api: HuddleAPI? = .bundled) {
         self.api = api
-        if api == nil { lastError = "Huddle's server isn't configured. Add HUDDLE_SERVER_URL and HUDDLE_APP_TOKEN to ios/Local.xcconfig and rebuild." }
+        if api == nil { lastError = "I Formation's server isn't configured. Add HUDDLE_SERVER_URL and HUDDLE_APP_TOKEN to ios/Local.xcconfig and rebuild." }
     }
 
     var currentWeek: Int? { scoreboard?.week ?? rooting?.week }

@@ -26,7 +26,7 @@ struct HuddleAPI {
         guard let url = URL(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
               let host = url.host, !host.hasSuffix(".invalid"),
               url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1"].contains(host)) else {
-            throw APIError(message: "Huddle's server address isn't set. Add it to ios/Local.xcconfig and rebuild.")
+            throw APIError(message: "I Formation's server address isn't set. Add it to ios/Local.xcconfig and rebuild.")
         }
         baseURL = url
         self.token = token
