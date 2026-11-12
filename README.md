@@ -66,9 +66,9 @@ curl -X PUT -H "Authorization: Bearer $APP_TOKEN" -H 'content-type: application/
 1. Go to [developer.yahoo.com/apps/create](https://developer.yahoo.com/apps/create/). Create an app with **Fantasy Sports → Read** access. Set the redirect URI to your server's address plus `/v1/yahoo/callback` (for example `https://huddle-api.fly.dev/v1/yahoo/callback`). Yahoo requires https, so this has to be the hosted server.
 2. Put the client ID and secret into the server's secrets as `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` and `YAHOO_REDIRECT_URI`.
 
-## Host the server
+## Host the server on Fly
 
-The repository includes a Fly.io config (`server/fly.toml`). The server does no background work, so the machine can sleep when idle.
+As an alternative to your Mac, the repository includes a Fly.io config (`server/fly.toml`). The server does no background work, so the machine can sleep when idle.
 
 1. Install `flyctl` and sign in. From `server/`, run `fly launch --no-deploy --copy-config` and accept or rename the app. If the name changes, update `app` in `fly.toml`.
 2. Create the volume for account settings: `fly volumes create huddle_data --size 1`.
@@ -79,6 +79,16 @@ The repository includes a Fly.io config (`server/fly.toml`). The server does no 
    ```
    Keep a copy of `APP_TOKEN`, because the app needs it. If you lose `STATE_KEY`, the saved accounts can't be decrypted and you'll have to enter them again.
 4. Run `fly deploy`, then check `https://<your-app>.fly.dev/health`.
+
+## Host the server on your Mac
+
+If your Mac is always on, it can run the server instead of Fly. The server listens only on the Mac itself, and Tailscale makes it reachable from your iPhone over HTTPS without exposing it to the internet.
+
+1. Install Node.js 22 or newer (`brew install node`) and [Tailscale](https://tailscale.com/download) on the Mac, and Tailscale on your iPhone, signed in to the same account.
+2. Clone this repository on the Mac. From its root, run `sh server/mac/install.sh`. The first run creates `server/.env` with a new `APP_TOKEN` and `STATE_KEY` and port 8788, so it doesn't clash with Sideout on 8787. Then it installs a LaunchAgent that starts the server at login and restarts it if it stops. Logs go to `~/Library/Logs/Huddle/server.log`. Run the script again after pulling new code; `sh server/mac/install.sh uninstall` removes it.
+3. Give it an HTTPS address on your tailnet: `tailscale serve --bg --https=8443 http://127.0.0.1:8788`. Port 8443 leaves 443 free for anything else you serve, such as Sideout. Your address is `https://<mac-name>.<tailnet>.ts.net:8443`; `tailscale serve status` shows it.
+4. Use that address as `HUDDLE_SERVER_URL` and the `APP_TOKEN` from `server/.env` as `HUDDLE_APP_TOKEN` when building the app.
+5. For Yahoo, set `YAHOO_REDIRECT_URI` in `server/.env` to that address plus `/v1/yahoo/callback`, use the same URI in the Yahoo app settings, and run the install script again. Yahoo only redirects your phone's browser there, so it works without making the server public.
 
 ## Build the iPhone app on a Mac
 
