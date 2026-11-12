@@ -70,10 +70,12 @@ export function createApp({ aggregator, store, yahoo, appToken = process.env.APP
         const state = url.searchParams.get('state') || '', code = url.searchParams.get('code');
         const expires = pendingYahoo.get(state);
         pendingYahoo.delete(state);
+        const yahooError = url.searchParams.get('error');
+        console.log(`Yahoo callback: state ${expires ? 'known' : 'unknown'}, code ${code ? 'present' : 'missing'}${yahooError ? `, error ${yahooError}: ${url.searchParams.get('error_description') || ''}` : ''}`);
         if (!expires || expires < now()) return redirect(`${APP_SCHEME}://yahoo?error=${encodeURIComponent('Sign-in expired. Try again.')}`);
         if (!code) return redirect(`${APP_SCHEME}://yahoo?error=${encodeURIComponent(url.searchParams.get('error') || 'Yahoo sign-in was cancelled.')}`);
-        try { store.saveYahooTokens(await yahoo.exchange(code)); return redirect(`${APP_SCHEME}://yahoo?connected=1`); }
-        catch (error) { return redirect(`${APP_SCHEME}://yahoo?error=${encodeURIComponent(error.message)}`); }
+        try { store.saveYahooTokens(await yahoo.exchange(code)); console.log('Yahoo connected.'); return redirect(`${APP_SCHEME}://yahoo?connected=1`); }
+        catch (error) { console.error(`Yahoo token exchange failed: ${error.message}`); return redirect(`${APP_SCHEME}://yahoo?error=${encodeURIComponent(error.message)}`); }
       }
 
       if (!url.pathname.startsWith('/v1/')) return send(404, { error: 'Not found.' });
