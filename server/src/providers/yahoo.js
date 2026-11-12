@@ -20,7 +20,9 @@ export class YahooProvider {
   get configured() { return Boolean(this.clientId && this.clientSecret && this.redirectUri); }
 
   authorizeURL(state) {
-    const params = new URLSearchParams({ client_id: this.clientId, redirect_uri: this.redirectUri, response_type: 'code', state });
+    // fspt-r is Fantasy Sports read access. Without it Yahoo issues a sign-in-only token and every
+    // Fantasy API call returns 403 "This application is not authorized to perform this action."
+    const params = new URLSearchParams({ client_id: this.clientId, redirect_uri: this.redirectUri, response_type: 'code', scope: 'fspt-r', state });
     return `${YAHOO_AUTHORIZE}?${params}`;
   }
 
