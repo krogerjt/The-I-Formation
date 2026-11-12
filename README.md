@@ -1,6 +1,6 @@
-# Huddle
+# I Formation
 
-One iPhone app for every fantasy football league you play in on Sleeper, ESPN and Yahoo. It shows:
+I Formation (the code and server still use the working name Huddle) is one iPhone app for every fantasy football league you play in on Sleeper, ESPN and Yahoo. It shows:
 
 - **Scores:** every matchup this week in one list, with live and projected points, who's yet to play, and a "winning 2 of 3" summary. Tap a league to see both lineups side by side.
 - **Root For:** every player who matters to you this week across all leagues, grouped by NFL game. Each player gets a net score: the number of leagues where he's your starter minus the number where an opponent starts him. Green means root for him, red means root against, orange means you're torn.

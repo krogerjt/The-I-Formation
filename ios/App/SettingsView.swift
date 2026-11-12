@@ -26,7 +26,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Sleeper")
                 } footer: {
-                    Text("Huddle finds every league you're in for this season. Leave blank to turn Sleeper off.")
+                    Text("I Formation finds every league you're in for this season. Leave blank to turn Sleeper off.")
                 }
 
                 Section {
@@ -69,7 +69,7 @@ struct SettingsView: View {
                     if store.accounts?.yahooAvailable == false {
                         Text("Yahoo isn't set up on the server yet. Add the Yahoo app keys to the server (see the README).")
                     } else {
-                        Text("Yahoo signs you in on its own page. Huddle only gets read access to your fantasy teams.")
+                        Text("Yahoo signs you in on its own page. I Formation only gets read access to your fantasy teams.")
                     }
                 }
             }

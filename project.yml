@@ -29,7 +29,7 @@ targets:
     info:
       path: ios/Config/App-Info.plist
       properties:
-        CFBundleDisplayName: Huddle
+        CFBundleDisplayName: I Formation
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
