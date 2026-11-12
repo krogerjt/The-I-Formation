@@ -268,5 +268,72 @@
         "theirPlayersLeft": 1
       }
     }
-  ]
+  ],
+  "fandom": {
+    "fanOf": null,
+    "against": {
+      "team": "ATL",
+      "name": "Atlanta Falcons",
+      "rootFor": 0,
+      "rootAgainst": 1,
+      "net": -1,
+      "myPlayers": [],
+      "theirPlayers": [
+        "Bijan Robinson"
+      ]
+    },
+    "teams": [
+      {
+        "team": "KC",
+        "name": "Kansas City Chiefs",
+        "rootFor": 2,
+        "rootAgainst": 2,
+        "net": 0,
+        "myPlayers": [
+          "Patrick Mahomes"
+        ],
+        "theirPlayers": [
+          "Patrick Mahomes",
+          "Chiefs D/ST"
+        ]
+      },
+      {
+        "team": "BUF",
+        "name": "Buffalo Bills",
+        "rootFor": 1,
+        "rootAgainst": 1,
+        "net": 0,
+        "myPlayers": [
+          "Josh Allen"
+        ],
+        "theirPlayers": [
+          "Josh Allen"
+        ]
+      },
+      {
+        "team": "DAL",
+        "name": "Dallas Cowboys",
+        "rootFor": 1,
+        "rootAgainst": 1,
+        "net": 0,
+        "myPlayers": [
+          "CeeDee Lamb"
+        ],
+        "theirPlayers": [
+          "CeeDee Lamb"
+        ]
+      },
+      {
+        "team": "ATL",
+        "name": "Atlanta Falcons",
+        "rootFor": 0,
+        "rootAgainst": 1,
+        "net": -1,
+        "myPlayers": [],
+        "theirPlayers": [
+          "Bijan Robinson"
+        ]
+      }
+    ]
+  }
 }

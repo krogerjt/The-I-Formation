@@ -90,8 +90,27 @@ struct Scoreboard: Codable, Hashable {
     let errors: [ProviderIssue]
     let games: [NFLGame]
     let matchups: [Matchup]
+    /// Optional so the app still decodes a server that predates the team summary.
+    let fandom: Fandom?
 
     func game(for player: Player) -> NFLGame? { games.first { $0.id == player.gameId } }
+}
+
+/// Starters added up by NFL team: who I'm a fan of this week, and who I want to lose.
+struct Fandom: Codable, Hashable {
+    struct Team: Codable, Hashable, Identifiable {
+        let team: String
+        let name: String
+        let rootFor: Int
+        let rootAgainst: Int
+        let net: Int
+        let myPlayers: [String]
+        let theirPlayers: [String]
+        var id: String { team }
+    }
+    let fanOf: Team?
+    let against: Team?
+    let teams: [Team]
 }
 
 struct RootingPlayer: Codable, Hashable, Identifiable {
