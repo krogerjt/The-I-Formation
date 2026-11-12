@@ -120,6 +120,7 @@ test('Yahoo: builds the sign-in URL', () => {
   assert.equal(url.searchParams.get('redirect_uri'), 'https://h/v1/yahoo/callback');
   assert.equal(url.searchParams.get('state'), 'xyz');
   assert.equal(url.searchParams.get('response_type'), 'code');
+  assert.equal(url.searchParams.get('scope'), 'fspt-r');
 });
 
 test('NFL scoreboard: maps each team to its game and state', async () => {
