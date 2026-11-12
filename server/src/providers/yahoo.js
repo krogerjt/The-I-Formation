@@ -55,8 +55,17 @@ export class YahooProvider {
 
   async get(tokens, path) {
     const sep = path.includes('?') ? '&' : '?';
-    const data = await getJSON(this.fetch, `${YAHOO_API}${path}${sep}format=json`, 'Yahoo', { authorization: `Bearer ${tokens.accessToken}` });
-    return data.fantasy_content;
+    try {
+      const data = await getJSON(this.fetch, `${YAHOO_API}${path}${sep}format=json`, 'Yahoo', { authorization: `Bearer ${tokens.accessToken}` });
+      return data.fantasy_content;
+    } catch (error) {
+      // A fresh, consented token still gets 403 when Yahoo hasn't approved this developer app for the
+      // Fantasy Sports API. Re-signing in can't fix that, so say what can.
+      if (error instanceof ProviderError && error.status === 403) {
+        throw new ProviderError('Yahoo hasn\'t approved this app for its Fantasy Sports API yet (403). Signing in again won\'t help; request Fantasy API access for the app at developer.yahoo.com.', 403);
+      }
+      throw error;
+    }
   }
 
   async matchups({ tokens, save }, { week }) {

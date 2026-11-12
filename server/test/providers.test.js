@@ -101,6 +101,12 @@ test('Yahoo: reads teams, league names, matchup and rosters from Yahoo\'s nested
   assert.deepEqual(m.opponent.players.map(p => p.name), ['Bijan Robinson']);
 });
 
+test('Yahoo: a 403 on a fresh token says the app needs Fantasy API approval', async () => {
+  const fetch = fakeFetch({ 'https://fantasysports.yahooapis.com': new Response('{}', { status: 403 }) });
+  const yahoo = new YahooProvider({ fetch, clientId: 'id', clientSecret: 'secret', redirectUri: 'https://h/cb', now });
+  await assert.rejects(yahoo.matchups({ tokens: yahooTokens, save: () => {} }, { week: 10 }), /approved this app for its Fantasy Sports API/);
+});
+
 test('Yahoo: refreshes an expiring token and saves it', async () => {
   let saved;
   const fetch = fakeFetch({ ...allRoutes, [YAHOO_TOKEN]: (url, options) => {
