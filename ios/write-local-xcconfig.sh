@@ -3,7 +3,7 @@
 # machines (such as agent-team's Mac Build Host) that receive them as environment variables.
 set -eu
 : "${HUDDLE_SERVER_URL:?Set HUDDLE_SERVER_URL to the https:// address of the server.}"
-: "${HUDDLE_APP_TOKEN:?Set HUDDLE_APP_TOKEN to the server's APP_TOKEN.}"
+: "${HUDDLE_APP_TOKEN:?Set HUDDLE_APP_TOKEN to the APP_TOKEN from the server .env file.}"
 case "$HUDDLE_SERVER_URL" in https://*|http://*) ;; *) echo "HUDDLE_SERVER_URL must start with https://" >&2; exit 1 ;; esac
 # xcconfig files treat // as a comment, so write :/$()/ instead.
 {
