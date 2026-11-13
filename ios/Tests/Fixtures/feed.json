@@ -1,0 +1,76 @@
+{
+  "season": 2026,
+  "week": 10,
+  "updatedAt": "2026-11-08T20:00:31.000Z",
+  "window": "live",
+  "scores": [
+    {
+      "kind": "score",
+      "platform": "sleeper",
+      "leagueName": "Dynasty Bros",
+      "myTeam": "Kroger Kings",
+      "myScore": 41.5,
+      "opponentTeam": "sam",
+      "opponentScore": 30.1,
+      "leading": "me",
+      "winChance": null
+    },
+    {
+      "kind": "score",
+      "platform": "espn",
+      "leagueName": "Work League",
+      "myTeam": "Allen Wrench",
+      "myScore": 30.1,
+      "opponentTeam": "Team Boss",
+      "opponentScore": 55.4,
+      "leading": "opponent",
+      "winChance": null
+    },
+    {
+      "kind": "score",
+      "platform": "yahoo",
+      "leagueName": "Family League",
+      "myTeam": "Yahoo Jake",
+      "myScore": 24.3,
+      "opponentTeam": "Cousin Ed",
+      "opponentScore": 9,
+      "leading": "me",
+      "winChance": null
+    }
+  ],
+  "events": [
+    {
+      "id": "1794168031000:sleeper:4046",
+      "at": "2026-11-08T20:00:31.000Z",
+      "kind": "touchdown",
+      "player": "Patrick Mahomes",
+      "nflTeam": "KC",
+      "text": "P. Mahomes threw 25-yard touchdown pass",
+      "points": 4,
+      "leagues": [
+        {
+          "platform": "sleeper",
+          "leagueName": "Dynasty Bros"
+        }
+      ],
+      "playId": "2"
+    }
+  ],
+  "current": {
+    "kind": "touchdown",
+    "nflTeam": "KC",
+    "player": "Patrick Mahomes",
+    "text": "P. Mahomes threw 25-yard touchdown pass",
+    "points": 4,
+    "platform": "sleeper",
+    "leagueName": "Dynasty Bros",
+    "leagues": 1
+  },
+  "errors": [],
+  "liveActivity": {
+    "push": true,
+    "auto": true,
+    "canAutoStart": true,
+    "active": true
+  }
+}

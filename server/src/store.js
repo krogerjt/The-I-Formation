@@ -14,7 +14,7 @@ export class Store {
   }
 
   read() {
-    const empty = { sleeper: null, espn: [], yahoo: null };
+    const empty = { sleeper: null, espn: [], yahoo: null, live: { auto: true, pushToStart: null, activity: null } };
     if (!this.path) return empty;
     let raw;
     try { raw = readFileSync(this.path); } catch (error) { if (error.code === 'ENOENT') return empty; throw error; }
@@ -24,8 +24,9 @@ export class Store {
     return { ...empty, ...JSON.parse(Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')) };
   }
 
-  write() {
-    this.version++;
+  // `bump` tells the aggregator its cached leagues are stale; Live Activity tokens don't change any league.
+  write({ bump = true } = {}) {
+    if (bump) this.version++;
     if (!this.path) return;
     mkdirSync(dirname(this.path), { recursive: true });
     const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', this.key, iv);
@@ -61,4 +62,8 @@ export class Store {
   }
 
   saveYahooTokens(tokens) { this.state.yahoo = tokens ? { tokens } : null; this.write(); }
+
+  // Live Activity settings and push tokens: { auto, pushToStart, activity: { id, token, startedAt } }.
+  live() { return { auto: true, pushToStart: null, activity: null, ...this.state.live }; }
+  setLive(patch) { this.state.live = { ...this.live(), ...patch }; this.write({ bump: false }); }
 }
