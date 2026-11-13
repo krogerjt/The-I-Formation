@@ -133,6 +133,23 @@ test('the driver starts, rotates and ends the Live Activity around my games', as
   assert.equal(sent.length, count, 'auto start off');
 });
 
+test('a Live Activity started by hand with no game on rotates for an hour, then ends', async () => {
+  const { feed, store, advance, now } = liveSetup();
+  const sent = [];
+  const apns = { configured: true, send: async (token, payload) => { sent.push(payload.aps.event); return { ok: true, status: 200 }; } };
+  const driver = new LiveActivityDriver({ feed, apns, store, now, log: { warn() {}, error() {} } });
+  await feed.poll();
+  feed.gameWindow = () => 'off';
+  driver.saveTokens({ activityId: 'A1', activityToken: 'bb'.repeat(32) });
+  assert.equal(store.live().activity.manual, true);
+  await driver.tick();
+  assert.deepEqual(sent, ['update']);
+  advance(61 * 60 * 1000);
+  await driver.tick();
+  assert.deepEqual(sent, ['update', 'end']);
+  assert.equal(store.live().activity, null);
+});
+
 test('the driver forgets a token Apple says is dead', async () => {
   const { feed, store, now } = liveSetup();
   const apns = { configured: true, send: async () => ({ ok: false, status: 410, reason: 'Unregistered', gone: true }) };

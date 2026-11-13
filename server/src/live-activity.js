@@ -7,6 +7,7 @@
 const TICK = 30 * 1000, IDLE_TICK = 5 * 60 * 1000;
 const MAX_AGE = 7.5 * 60 * 60 * 1000;       // iOS ends a Live Activity after 8 hours
 const START_WAIT = 10 * 60 * 1000;          // how long a push-to-start waits for the phone to send its token
+const MANUAL_GRACE = 60 * 60 * 1000;        // one started by hand with no game on keeps rotating this long
 
 export const ATTRIBUTES_TYPE = 'ScoresActivityAttributes';
 
@@ -27,8 +28,11 @@ export class LiveActivityDriver {
     const live = this.store.live(), patch = {};
     if (pushToStart !== undefined) patch.pushToStart = pushToStart || null;
     if (activityId && activityToken) {
-      const startedAt = live.activity?.id === activityId || !live.activity?.id ? live.activity?.startedAt ?? this.now() : this.now();
-      patch.activity = { id: activityId, token: activityToken, startedAt };
+      const same = live.activity?.id === activityId, serverStarted = live.activity && !live.activity.id;
+      const startedAt = same || serverStarted ? live.activity.startedAt ?? this.now() : this.now();
+      // Started from the app rather than by the server's push-to-start.
+      const manual = same ? Boolean(live.activity.manual) : !serverStarted;
+      patch.activity = { id: activityId, token: activityToken, startedAt, manual };
     }
     if (ended && live.activity?.id === ended) patch.activity = null;
     if (Object.keys(patch).length) this.store.setLive(patch);
@@ -50,7 +54,9 @@ export class LiveActivityDriver {
         if (age > START_WAIT) this.store.setLive({ activity: null });
         return TICK;
       }
-      if (window === 'off' || age > MAX_AGE) {
+      // Ends with my last game. One started by hand when nothing is on (to try it out) gets an hour first.
+      const over = window === 'off' && !(activity.manual && age < MANUAL_GRACE);
+      if (over || age > MAX_AGE) {
         await this.end(activity);
         if (window !== 'off' && live.auto && live.pushToStart) await this.start(live.pushToStart);
         return window === 'off' ? IDLE_TICK : TICK;
