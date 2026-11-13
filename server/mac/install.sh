@@ -19,7 +19,12 @@ if [ "${1:-}" = uninstall ]; then
   exit 0
 fi
 
+# SSH sessions don't load the login PATH, so also look where Node is commonly installed by hand.
 NODE=$(command -v node || true)
+for candidate in "$HOME/.local/node/bin/node" /opt/homebrew/bin/node /usr/local/bin/node; do
+  [ -n "$NODE" ] && break
+  [ -x "$candidate" ] && NODE=$candidate
+done
 [ -n "$NODE" ] || { echo "Install Node.js 22 or newer first (brew install node)." >&2; exit 1; }
 MAJOR=$("$NODE" -p 'process.versions.node.split(".")[0]')
 [ "$MAJOR" -ge 22 ] || { echo "Node.js $MAJOR is too old; Huddle needs 22 or newer." >&2; exit 1; }

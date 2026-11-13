@@ -8,3 +8,4 @@ Huddle.xcodeproj/
 ios/Config/
 ios/Local.xcconfig
 node_modules/
+*.p8

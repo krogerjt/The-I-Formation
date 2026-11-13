@@ -8,12 +8,18 @@ import { SleeperProvider } from './providers/sleeper.js';
 import { ESPNProvider } from './providers/espn.js';
 import { YahooProvider } from './providers/yahoo.js';
 import { NFLGames } from './providers/nfl.js';
+import { NFLPlays } from './providers/plays.js';
+import { LiveFeed } from './live.js';
+import { LiveActivityDriver } from './live-activity.js';
+import { APNs } from './apns.js';
 
 const APP_SCHEME = 'huddle';
 const SLEEPER_USERNAME = /^[A-Za-z0-9_.-]{1,40}$/;
 const SWID = /^\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$/i;
 const ESPN_S2 = /^[A-Za-z0-9%+/=_-]{20,1024}$/;
 const MAX_ESPN_LEAGUES = 20;
+const PUSH_TOKEN = /^[0-9a-f]{32,512}$/i;
+const ACTIVITY_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 async function body(req) {
   let result = '';
@@ -55,7 +61,7 @@ export function validESPNLeagues(leagues) {
   });
 }
 
-export function createApp({ aggregator, store, yahoo, appToken = process.env.APP_TOKEN, now = Date.now }) {
+export function createApp({ aggregator, store, yahoo, feed, live, appToken = process.env.APP_TOKEN, now = Date.now }) {
   const pendingYahoo = new Map(); // OAuth state -> expiry
   return createServer(async (req, res) => {
     const send = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
@@ -101,6 +107,24 @@ export function createApp({ aggregator, store, yahoo, appToken = process.env.APP
         pendingYahoo.set(state, now() + 10 * 60 * 1000);
         return send(200, { url: yahoo.authorizeURL(state), callbackScheme: APP_SCHEME });
       }
+      if (route === 'GET /v1/feed') {
+        await feed.refresh();
+        return send(200, { ...feed.snapshot(), liveActivity: live.status() });
+      }
+      if (route === 'GET /v1/live') return send(200, live.status());
+      if (route === 'PUT /v1/live/settings') {
+        const { auto } = await body(req);
+        if (typeof auto !== 'boolean') throw new HTTPError(400, 'Send {"auto": true} or {"auto": false}.');
+        return send(200, live.setAuto(auto));
+      }
+      if (route === 'PUT /v1/live/tokens') {
+        const { pushToStart, activityId, activityToken, ended } = await body(req);
+        if (pushToStart != null && pushToStart !== '' && !PUSH_TOKEN.test(pushToStart)) throw new HTTPError(400, 'pushToStart must be a hex token.');
+        if (activityToken != null && !PUSH_TOKEN.test(activityToken)) throw new HTTPError(400, 'activityToken must be a hex token.');
+        for (const id of [activityId, ended]) if (id != null && !ACTIVITY_ID.test(id)) throw new HTTPError(400, 'That isn\'t an activity ID.');
+        if (Boolean(activityId) !== Boolean(activityToken)) throw new HTTPError(400, 'Send activityId and activityToken together.');
+        return send(200, live.saveTokens({ pushToStart, activityId, activityToken, ended }));
+      }
       if (route === 'DELETE /v1/yahoo') { store.saveYahooTokens(null); return send(200, store.publicAccounts()); }
       return send(404, { error: 'Not found.' });
     } catch (error) {
@@ -117,10 +141,16 @@ export function createDefaultApp(env = process.env) {
   const store = new Store({ path: env.DATA_PATH || 'data/state.bin', key: env.STATE_KEY });
   const yahoo = new YahooProvider({ clientId: env.YAHOO_CLIENT_ID, clientSecret: env.YAHOO_CLIENT_SECRET, redirectUri: env.YAHOO_REDIRECT_URI });
   const aggregator = new Aggregator({ sleeper: new SleeperProvider({ players }), espn: new ESPNProvider(), yahoo, nfl: new NFLGames(), players, store });
-  return createApp({ aggregator, store, yahoo, appToken: env.APP_TOKEN });
+  const feed = new LiveFeed({ aggregator, plays: new NFLPlays() });
+  const live = new LiveActivityDriver({ feed, apns: APNs.fromEnv(env), store });
+  const app = createApp({ aggregator, store, yahoo, feed, live, appToken: env.APP_TOKEN });
+  app.live = live;
+  return app;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const port = Number(process.env.PORT) || 8787, host = process.env.HOST || '127.0.0.1';
-  createDefaultApp().listen(port, host, () => console.log(`Huddle server on http://${host}:${port}`));
+  const app = createDefaultApp();
+  app.listen(port, host, () => console.log(`Huddle server on http://${host}:${port}${app.live.pushConfigured ? ', Live Activity push on' : ''}`));
+  app.live.run();
 }
