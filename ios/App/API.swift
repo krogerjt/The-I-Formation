@@ -78,6 +78,28 @@ struct HuddleAPI {
 
     func disconnectYahoo() async throws { try await send("DELETE", "v1/yahoo", body: Optional<[String: String]>.none) }
 
+    // MARK: - Feed and Live Activity
+
+    func feed() async throws -> FeedSnapshot { try await get("v1/feed") }
+
+    func liveStatus() async throws -> LiveActivityStatus { try await get("v1/live") }
+
+    func setLiveAuto(_ auto: Bool) async throws -> LiveActivityStatus {
+        try await request("PUT", "v1/live/settings", body: ["auto": auto])
+    }
+
+    struct LiveTokens: Encodable {
+        var pushToStart: String? = nil
+        var activityId: String? = nil
+        var activityToken: String? = nil
+        var ended: String? = nil
+    }
+
+    @discardableResult
+    func saveLiveTokens(_ tokens: LiveTokens) async throws -> LiveActivityStatus {
+        try await request("PUT", "v1/live/tokens", body: tokens)
+    }
+
     // MARK: - Plumbing
 
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {

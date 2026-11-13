@@ -22,6 +22,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.krogerjt.huddle
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: HuddleWidgets
+    # Push notifications carry the Live Activity updates; the App Group shares team logos with the widget.
+    # aps-environment is development because the app is installed from Xcode; a TestFlight build would use production.
+    entitlements:
+      path: ios/Config/Huddle.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups: [group.com.krogerjt.huddle]
     # HUDDLE_SERVER_URL and HUDDLE_APP_TOKEN come from ios/Huddle.xcconfig, which reads the git-ignored ios/Local.xcconfig.
     configFiles:
       Debug: ios/Huddle.xcconfig
@@ -36,8 +45,33 @@ targets:
         HuddleServerURL: $(HUDDLE_SERVER_URL)
         HuddleAppToken: $(HUDDLE_APP_TOKEN)
         UILaunchScreen: {}
+        NSSupportsLiveActivities: true
+        # The server updates the Live Activity every 30 seconds during games.
+        NSSupportsLiveActivitiesFrequentUpdates: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+  # The Live Activity (lock screen and Dynamic Island).
+  HuddleWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ios/Widgets
+      - ios/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.krogerjt.huddle.widgets
+    entitlements:
+      path: ios/Config/HuddleWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.krogerjt.huddle]
+    info:
+      path: ios/Config/Widgets-Info.plist
+      properties:
+        CFBundleDisplayName: I Formation
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   HuddleTests:
     type: bundle.unit-test
     platform: iOS

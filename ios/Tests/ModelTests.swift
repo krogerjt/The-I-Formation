@@ -52,4 +52,32 @@ final class ModelTests: XCTestCase {
         let json = try String(decoding: JSONEncoder().encode(HuddleAPI.ESPNLeagueInput(leagueId: "1", teamId: nil)), as: UTF8.self)
         XCTAssertEqual(json, #"{"leagueId":"1"}"#)
     }
+
+    func testFeedDecodesAndMatchesTheServersSlides() throws {
+        let feed: FeedSnapshot = try fixture("feed")
+        XCTAssertEqual(feed.scores.map(\.leagueName), ["Dynasty Bros", "Work League", "Family League"])
+        XCTAssertEqual(feed.scores[1].myTeam, "Allen Wrench")
+        XCTAssertEqual(feed.scores[1].opponentScoreText, "55.4")
+        let touchdown = try XCTUnwrap(feed.events.first)
+        XCTAssertEqual(touchdown.kind, .touchdown)
+        // The app builds the same slide from an event as the server pushes to the Live Activity.
+        XCTAssertEqual(touchdown.slide(), feed.current)
+        XCTAssertEqual(touchdown.slide(as: .play).pointsText, "+4.0")
+        XCTAssertTrue(feed.liveActivity.push)
+    }
+
+    func testRotationAlternatesPlaysWithEachLeague() throws {
+        let feed: FeedSnapshot = try fixture("feed")
+        var rotator = SlideRotator()
+        let shown = (0..<7).compactMap { _ in rotator.next(feed) }
+            .map { $0.kind == .score ? $0.leagueName ?? "" : $0.kind.rawValue }
+        // The fixture's touchdown was already there on the first load, so it isn't announced again.
+        XCTAssertEqual(shown, ["play", "Dynasty Bros", "play", "Work League", "play", "Family League", "play"])
+    }
+
+    func testLiveSlideDecodesAMinimalPush() throws {
+        let slide = try JSONDecoder().decode(LiveSlide.self, from: Data(#"{"kind":"score","myScore":100.3,"opponentScore":90.4,"future":1}"#.utf8))
+        XCTAssertEqual(slide.myScoreText, "100.3")
+        XCTAssertEqual(slide.opponentScoreText, "90.4")
+    }
 }

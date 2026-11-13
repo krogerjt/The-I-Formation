@@ -5,6 +5,8 @@ I Formation (the code and server still use the working name Huddle) is one iPhon
 - **Scores:** every matchup this week in one list, with live and projected points, who's yet to play, and a "winning 2 of 3" summary. Tap a league to see both lineups side by side.
 - **Root For:** every player who matters to you this week across all leagues, grouped by NFL game. Each player gets a net score: the number of leagues where he's your starter minus the number where an opponent starts him. Green means root for him, red means root against, orange means you're torn.
 
+- **Feed and Live Activity:** your starters' scoring plays ("M. Nabers caught pass for 20 yards, +3.0 points") and each league's score, rotating every 30 seconds on the Feed tab, the lock screen and the Dynamic Island: play, league 1, play, league 2, and so on. When one of your starters scores a touchdown, a **Touchdown!** slide jumps the queue.
+
 Screens refresh every 60 seconds while NFL games are live.
 
 ## How it works
@@ -54,6 +56,10 @@ curl -X PUT -H "Authorization: Bearer $APP_TOKEN" -H 'content-type: application/
 | `POST /v1/yahoo/start` | Returns the Yahoo sign-in URL; the app opens it |
 | `GET /v1/yahoo/callback` | Yahoo redirects here after sign-in, then back to the app at `huddle://` |
 | `DELETE /v1/yahoo` | Forget the Yahoo tokens |
+| `GET /v1/feed` | Recent scoring plays by my starters, each league's score as a slide, and the Live Activity status |
+| `GET /v1/live` | Live Activity status: whether the server can push, auto start, and whether one is running |
+| `PUT /v1/live/settings` | `{"auto": true}` starts the Live Activity when my games kick off |
+| `PUT /v1/live/tokens` | The phone's push tokens: `pushToStart`, `activityId` + `activityToken`, or `ended` |
 
 ## Connect your accounts
 
@@ -91,6 +97,22 @@ If your Mac is always on, it can run the server instead of Fly. The server liste
 4. Use that address as `HUDDLE_SERVER_URL` and the `APP_TOKEN` from `server/.env` as `HUDDLE_APP_TOKEN` when building the app.
 5. For Yahoo, set `YAHOO_REDIRECT_URI` in `server/.env` to that address plus `/v1/yahoo/callback`, use the same URI in the Yahoo app settings, and run the install script again. Yahoo only redirects your phone's browser there, so it works without making the server public.
 
+## Live Activity
+
+The Live Activity rotates every 30 seconds between the latest scoring play by one of your starters and one league's score, moving to the next league each time. A touchdown by one of your starters goes next, out of turn, and pops the Dynamic Island open. The Feed tab shows the same slides.
+
+Fantasy platforms only report point totals, so the server polls every 30 seconds while one of your starters' games is on. When a starter's points go up, it looks up his latest play in ESPN's public NFL play-by-play to describe it. None of the platforms' APIs report a win chance, so score slides don't show one yet.
+
+A Live Activity can't change by itself, so with the phone locked each slide is an Apple push from the server. That needs an APNs key, which needs a paid developer account:
+
+1. At [developer.apple.com → Keys](https://developer.apple.com/account/resources/authkeys/list), add a key with **Apple Push Notifications service (APNs)** checked, or reuse an existing APNs key from the same team. Note its Key ID and download the `.p8` file (Apple only lets you download it once).
+2. Copy it into `server/` on the Mac and set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_KEY_PATH` in `server/.env` (see `.env.example`). Run the install script again.
+3. The log line `Huddle server on ..., Live Activity push on` confirms it.
+
+Without a key the Live Activity still works, but only changes while the app is open.
+
+With auto start on (the Feed tab's switch), the server starts the Live Activity when the first of your starters' games kicks off, ends it when your last game is over, and replaces it before iOS's 8-hour limit. Starting by push needs iOS 17.2 or later and the app opened once so iOS can hand over a push-to-start token. The app and widget share team logos through the `group.com.krogerjt.huddle` App Group; the first signed build registers it and the widget's bundle ID (`com.krogerjt.huddle.widgets`) with automatic signing.
+
 ## Build the iPhone app on a Mac
 
 1. Install Xcode (iOS 17 SDK or newer) and XcodeGen: `brew install xcodegen`.
@@ -114,19 +136,25 @@ Builds can run on the Mac over SSH with [agent-team](https://github.com/krogerjt
 ## Layout
 
 ```
-project.yml                 XcodeGen spec (app + unit tests)
-ios/App                     SwiftUI screens, API client, state
+project.yml                 XcodeGen spec (app, Live Activity widget, unit tests)
+ios/App                     SwiftUI screens, API client, state, Live Activity controller
+ios/Widgets                 The Live Activity (lock screen and Dynamic Island)
 ios/Shared/Models.swift     Codable models matching the server's JSON
+ios/Shared/LiveSlide*.swift Live Activity content and the slide views the widget and Feed tab share
 ios/Tests                   Decodes fixtures produced by the real server
-server/src/providers        sleeper.js, espn.js, yahoo.js, nfl.js
+server/src/providers        sleeper.js, espn.js, yahoo.js, nfl.js, plays.js
 server/src/aggregate.js     Scoreboard and rooting guide
 server/src/players.js       Cross-platform player matching
+server/src/live.js          Scoring plays, touchdowns and the slide rotation
+server/src/live-activity.js Starts, updates and ends the Live Activity by push (apns.js sends them)
 server/test                 Offline tests; export-fixtures.js regenerates ios/Tests/Fixtures
 ```
 
 ## Known gaps
 
 - ESPN and Yahoo haven't been tried against live leagues yet.
+- Play descriptions are parsed from ESPN's play text and haven't been checked against a live game yet. Anything the parser doesn't recognize is shown as ESPN wrote it.
+- A play that scores in several leagues shows the biggest point gain among them.
 - Sleeper's public API has no projections, so Sleeper matchups show live points only.
 - ESPN playoff matchups that span two weeks use the matchup period with the same number as the NFL week.
 - The Yahoo `nfl` game key always means the current season, so past seasons only work for Sleeper and ESPN.

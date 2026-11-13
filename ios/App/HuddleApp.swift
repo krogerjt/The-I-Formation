@@ -2,12 +2,26 @@ import SwiftUI
 
 @main
 struct HuddleApp: App {
-    @State private var store = HuddleStore()
+    @State private var store: HuddleStore
+    @State private var live: LiveActivityController
+    @State private var feed: FeedModel
+
+    init() {
+        let store = HuddleStore()
+        let live = LiveActivityController(api: store.api)
+        // Observe right away: iOS launches the app in the background to hand over a new Live Activity's push token.
+        live.observe()
+        _store = State(initialValue: store)
+        _live = State(initialValue: live)
+        _feed = State(initialValue: FeedModel(api: store.api, live: live))
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
+                .environment(live)
+                .environment(feed)
                 .tint(Color.accentColor)
         }
     }
@@ -15,17 +29,26 @@ struct HuddleApp: App {
 
 struct RootView: View {
     @Environment(HuddleStore.self) private var store
+    @Environment(FeedModel.self) private var feed
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView {
             ScoreboardView()
                 .tabItem { Label("Scores", systemImage: "sportscourt") }
+            FeedView()
+                .tabItem { Label("Feed", systemImage: "dot.radiowaves.left.and.right") }
             RootingView()
                 .tabItem { Label("Root For", systemImage: "hand.thumbsup") }
             SettingsView()
                 .tabItem { Label("Accounts", systemImage: "person.crop.circle") }
         }
         .task { await store.refreshAccounts() }
+        // The feed rotates whichever tab is showing, so the Live Activity keeps changing while the app is open.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
+            await feed.run()
+        }
     }
 }
 
