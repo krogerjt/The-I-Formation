@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { allRoutes } from './fixtures.js';
-import { matchResult, seasonFor } from '../src/aggregate.js';
+import { matchResult, seasonFor, teamFandom } from '../src/aggregate.js';
 import { setup } from './setup.js';
 
 test('scoreboard has one matchup per league across all three platforms', async () => {
@@ -72,4 +72,30 @@ test('match status is final only when every starter has played', () => {
 test('season rolls over in March', () => {
   assert.equal(seasonFor(new Date('2027-01-10')), 2026);
   assert.equal(seasonFor(new Date('2026-09-10')), 2026);
+});
+
+test('scoreboard names the team I most want to win and the one I most want to lose', async () => {
+  const board = await setup().aggregator.scoreboard();
+  // Fixture: Mahomes is mine twice and theirs once, Chiefs D/ST theirs once, so KC nets out to zero.
+  assert.equal(board.fandom.fanOf, null);
+  assert.equal(board.fandom.against.team, 'ATL');
+  assert.equal(board.fandom.against.name, 'Atlanta Falcons');
+  assert.deepEqual(board.fandom.against.theirPlayers, ['Bijan Robinson']);
+  const kc = board.fandom.teams.find(t => t.team === 'KC');
+  assert.deepEqual([kc.rootFor, kc.rootAgainst, kc.net], [2, 2, 0]);
+});
+
+test('team fandom ranks by net starters, ignores bench players, and breaks ties by how many are mine', () => {
+  const p = (name, nflTeam, starter = true) => ({ name, nflTeam, starter });
+  const league = (mine, theirs) => ({ me: { players: mine }, opponent: { players: theirs } });
+  const { fanOf, against } = teamFandom([
+    league([p('Jordan Love', 'GB'), p('Josh Jacobs', 'GB'), p('Puka Nacua', 'LAR'), p('Davante Adams', 'LAR')], [p('Caleb Williams', 'CHI'), p('DJ Moore', 'CHI'), p('Rome Odunze', 'CHI', false)]),
+    league([p('Jordan Love', 'GB'), p('Tucker Kraft', 'GB')], [p('Caleb Williams', 'CHI'), p('Jayden Reed', 'GB')]),
+  ]);
+  assert.equal(fanOf.name, 'Green Bay Packers');
+  assert.deepEqual([fanOf.rootFor, fanOf.rootAgainst, fanOf.net], [4, 1, 3]);
+  assert.deepEqual(fanOf.myPlayers, ['Jordan Love', 'Josh Jacobs', 'Tucker Kraft']);
+  assert.equal(against.name, 'Chicago Bears');
+  assert.deepEqual([against.rootAgainst, against.net], [3, -3]);
+  assert.deepEqual(against.theirPlayers, ['Caleb Williams', 'DJ Moore']);
 });

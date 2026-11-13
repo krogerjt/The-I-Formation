@@ -20,6 +20,10 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(espn.me.bench.map(\.name), ["Bijan Robinson"])
         let allen = espn.me.starters[0]
         XCTAssertEqual(board.game(for: allen)?.name, "KC at BUF")
+        let fandom = try XCTUnwrap(board.fandom)
+        XCTAssertNil(fandom.fanOf)
+        XCTAssertEqual(fandom.against?.name, "Atlanta Falcons")
+        XCTAssertEqual(fandom.against?.theirPlayers, ["Bijan Robinson"])
     }
 
     func testRootingGuideDecodes() throws {

@@ -1,3 +1,5 @@
+import { TEAM_NAMES } from './model.js';
+
 // Turns every platform's matchups into the two things the app shows: a scoreboard and a rooting guide.
 
 export class Aggregator {
@@ -57,6 +59,7 @@ export class Aggregator {
         ...m,
         result: matchResult(m, data.games),
       })),
+      fandom: teamFandom(data.matchups),
     };
   }
 
@@ -105,6 +108,30 @@ export function rootingGuide({ matchups, games }, { includeBench = false } = {})
       conflicted: players.filter(p => p.verdict === 'conflicted').length,
     },
   };
+}
+
+// Adds up starters by NFL team: every one of my starters on a team is a reason to want that team to do well,
+// every opponent's starter a reason to want it to struggle. The team with the best net count is the one I'm
+// "a fan of" this week, the worst the one I want to lose. Counted per league, like the rooting guide.
+export function teamFandom(matchups) {
+  const byTeam = new Map();
+  for (const m of matchups) {
+    for (const [role, s] of [['me', m.me], ['opponent', m.opponent]]) {
+      for (const p of s?.players || []) {
+        if (!p.starter || !p.nflTeam) continue;
+        let entry = byTeam.get(p.nflTeam);
+        if (!entry) byTeam.set(p.nflTeam, entry = { team: p.nflTeam, name: TEAM_NAMES[p.nflTeam] || p.nflTeam, rootFor: 0, rootAgainst: 0, net: 0, myPlayers: [], theirPlayers: [] });
+        const list = role === 'me' ? entry.myPlayers : entry.theirPlayers;
+        role === 'me' ? entry.rootFor++ : entry.rootAgainst++;
+        if (!list.includes(p.name)) list.push(p.name);
+      }
+    }
+  }
+  const teams = [...byTeam.values()].map(t => ({ ...t, net: t.rootFor - t.rootAgainst }));
+  teams.sort((a, b) => b.net - a.net || b.rootFor - a.rootFor || a.rootAgainst - b.rootAgainst || a.team.localeCompare(b.team));
+  const fanOf = teams.find(t => t.net > 0) || null;
+  const against = [...teams].sort((a, b) => a.net - b.net || b.rootAgainst - a.rootAgainst || a.rootFor - b.rootFor || a.team.localeCompare(b.team)).find(t => t.net < 0) || null;
+  return { fanOf, against, teams };
 }
 
 function verdict({ rootFor, rootAgainst }) {

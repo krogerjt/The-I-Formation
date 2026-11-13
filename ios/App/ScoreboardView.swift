@@ -13,6 +13,7 @@ struct ScoreboardView: View {
                 if let board = store.scoreboard {
                     Section {
                         RecordSummary(matchups: board.matchups)
+                        if let fandom = board.fandom { FandomSummary(fandom: fandom) }
                         IssueBanner(issues: board.errors, error: store.lastError)
                     }
                     ForEach(board.matchups) { matchup in
@@ -55,6 +56,47 @@ struct RecordSummary: View {
                 Text("\(losing) behind").font(.subheadline).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// "You're a big Green Bay Packers fan this week. You really want the Chicago Bears to lose."
+struct FandomSummary: View {
+    let fandom: Fandom
+
+    var body: some View {
+        if fandom.fanOf != nil || fandom.against != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                if let team = fandom.fanOf {
+                    line(icon: "hand.thumbsup.fill", color: .green,
+                         title: team.net >= 3 ? "You're a big \(team.name) fan this week" : "You're pulling for the \(team.name) this week",
+                         detail: detail(count: team.rootFor, mine: true, names: team.myPlayers))
+                }
+                if let team = fandom.against {
+                    line(icon: "hand.thumbsdown.fill", color: .red,
+                         title: team.net <= -3 ? "You really want the \(team.name) to lose" : "You'd like the \(team.name) to lose",
+                         detail: detail(count: team.rootAgainst, mine: false, names: team.theirPlayers))
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func line(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon).foregroundStyle(color).frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// "4 of your starters: Jordan Love, Josh Jacobs and 1 more"
+    private func detail(count: Int, mine: Bool, names: [String]) -> String {
+        let who = mine ? "of your starters" : "starters against you"
+        let shown = names.prefix(2).joined(separator: ", ")
+        let rest = names.count > 2 ? " and \(names.count - 2) more" : ""
+        return "\(count) \(who): \(shown)\(rest)"
     }
 }
 
