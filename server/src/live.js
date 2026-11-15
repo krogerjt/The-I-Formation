@@ -65,18 +65,11 @@ export class LiveFeed {
       const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name).catch(() => null) : null;
       return { gain, play };
     }));
+    // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
+    // later), so more points from the play already shown for this player go onto that event.
+    for (let i = found.length - 1; i >= 0; i--) if (this.addToShown(found[i])) found.splice(i, 1);
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {
-      // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
-      // later), so more points from the play already shown for this player go onto that event.
-      const earlier = play && this.events.find(e => e.playId === play.id && e.playerKey === player.key);
-      if (earlier) {
-        earlier.points = round(earlier.points + points);
-        for (const l of leagues) if (!earlier.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) earlier.leagues.push(l);
-        this.events.splice(this.events.indexOf(earlier), 1);
-        this.events.unshift(earlier);
-        continue;
-      }
       const text = play ? describePlay(play.text, player.name) : `${shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
       const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
       // Only the passer, receiver or runner scored it, not the kicker of the extra point that shares its text.
@@ -91,6 +84,16 @@ export class LiveFeed {
     }
     this.events.length = Math.min(this.events.length, MAX_EVENTS);
     return board;
+  }
+
+  addToShown({ gain: { player, points, leagues }, play }) {
+    const shown = play && this.events.find(e => e.playId === play.id && e.playerKey === player.key);
+    if (!shown) return false;
+    shown.points = round(shown.points + points);
+    for (const l of leagues) if (!shown.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) shown.leagues.push(l);
+    this.events.splice(this.events.indexOf(shown), 1);
+    this.events.unshift(shown);
+    return true;
   }
 
   scores() {
