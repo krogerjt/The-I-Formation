@@ -1,4 +1,5 @@
 import { getJSON } from './http.js';
+import { nflTeam } from '../model.js';
 
 // NFL play-by-play from ESPN's public game summary (no auth), used to say what a fantasy player just did:
 // "M. Nabers caught pass for 20 yards". Fantasy platforms only report point totals, not plays.
@@ -10,19 +11,21 @@ export class NFLPlays {
     this.cache = new Map();
   }
 
-  // Every play of one game so far, oldest first: { id, text, touchdown }.
+  // Every play of one game so far, oldest first: { id, text, touchdown, team }, where team is the side
+  // with the ball.
   async plays(gameId) {
     const cached = this.cache.get(gameId);
     if (cached && this.now() - cached.at < this.ttl) return cached.value;
     const data = await getJSON(this.fetch, `${NFL_SUMMARY}?event=${encodeURIComponent(gameId)}`, 'NFL play-by-play');
     const drives = [...(data?.drives?.previous || []), ...(data?.drives?.current ? [data.drives.current] : [])];
+    const teams = new Map((data?.header?.competitions?.[0]?.competitors || []).map(c => [String(c.id ?? c.team?.id), nflTeam(c.team?.abbreviation)]));
     const seen = new Set(), value = [];
     for (const drive of drives) {
       for (const play of drive.plays || []) {
         const id = String(play.id ?? ''), text = String(play.text || '');
         if (!id || !text || seen.has(id)) continue;
         seen.add(id);
-        value.push({ id, text, touchdown: isTouchdown(play) });
+        value.push({ id, text, touchdown: isTouchdown(play), team: teams.get(String(play.start?.team?.id)) ?? null });
       }
     }
     this.cache.set(gameId, { at: this.now(), value });
@@ -34,14 +37,15 @@ export class NFLPlays {
   // gained something (a catch, a run or completion for positive yards, a kick or a two-point try). Fantasy
   // points often update a play or two late, so a newer sack, incompletion or run for a loss is skipped:
   // a 16-yard scramble followed by a 4-yard loss on a completion is the scramble's points, not the loss's.
-  // Falls back to the latest play that mentions him, or null.
-  async latestFor(gameId, name) {
+  // Falls back to the latest play that mentions him, or null. With his NFL team, plays by the other side
+  // are skipped: Travis Etienne Jr. (NO) and Trevor Etienne (CAR) are both "T.Etienne" to ESPN.
+  async latestFor(gameId, name, team = null) {
     const plays = await this.plays(gameId);
     const pattern = namePattern(name);
     if (!pattern) return null;
     let latest = null, seen = 0;
     for (let i = plays.length - 1; i >= 0 && seen < 12; i--) {
-      if (!pattern.test(plays[i].text)) continue;
+      if (!pattern.test(plays[i].text) || (team && plays[i].team && plays[i].team !== team)) continue;
       latest ||= plays[i];
       seen++;
       if (gainedOn(plays[i].text, name)) return plays[i];

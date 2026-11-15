@@ -63,7 +63,7 @@ export class LiveFeed {
     }
 
     const found = await Promise.all([...gains.values()].map(async gain => {
-      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name).catch(() => null) : null;
+      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam).catch(() => null) : null;
       return { gain, play };
     }));
     // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two

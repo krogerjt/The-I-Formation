@@ -107,3 +107,17 @@ test('points posted in pieces add up on one play instead of a second event', asy
   assert.equal(feed.events[0].points, 4.72);
   assert.equal(feed.pendingTouchdowns[0].points, 4.72, 'the queued Touchdown! slide shows the whole play');
 });
+
+test('two players ESPN writes the same way are told apart by the team with the ball', async () => {
+  // CAR at NO: Trevor Etienne (CAR) and Travis Etienne Jr. (NO) are both "T.Etienne".
+  const fetch = async () => new Response(JSON.stringify({
+    header: { competitions: [{ competitors: [{ id: '18', team: { abbreviation: 'NO' } }, { id: '29', team: { abbreviation: 'CAR' } }] }] },
+    drives: { current: { plays: [
+      { id: '1', start: { team: { id: '29' } }, text: '(Shotgun) B.Young pass short left to T.Etienne to NO 41 for 6 yards (J.Sanker).' },
+      { id: '2', start: { team: { id: '18' } }, text: '(Shotgun) T.Shough pass short right to T.Etienne to NO 10 for 6 yards (T.Dodson).' },
+    ] } } }));
+  const plays = new NFLPlays({ fetch, ttl: 0 });
+  assert.equal((await plays.latestFor('401873055', 'Trevor Etienne', 'CAR')).id, '1');
+  assert.equal((await plays.latestFor('401873055', 'Travis Etienne Jr.', 'NO')).id, '2');
+  assert.equal((await plays.latestFor('401873055', 'Trevor Etienne')).id, '2', 'without a team, the latest');
+});
