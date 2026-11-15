@@ -22,6 +22,7 @@ export class LiveFeed {
     this.week = null;
     this.baseline = new Map();     // `${matchupId}|${playerKey}` -> points at the last poll
     this.events = [];              // newest first
+    this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
     this.seenTouchdowns = new Set();
     this.board = null;
@@ -77,9 +78,10 @@ export class LiveFeed {
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
-        player: player.name, playerKey: player.key, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
+        player: player.name, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
       };
       this.events.unshift(event);
+      this.eventPlayers.set(event, player.key);
       if (touchdown) this.pendingTouchdowns.push(event);
     }
     this.events.length = Math.min(this.events.length, MAX_EVENTS);
@@ -87,7 +89,7 @@ export class LiveFeed {
   }
 
   addToShown({ gain: { player, points, leagues }, play }) {
-    const shown = play && this.events.find(e => e.playId === play.id && e.playerKey === player.key);
+    const shown = play && this.events.find(e => e.playId === play.id && this.eventPlayers.get(e) === player.key);
     if (!shown) return false;
     shown.points = round(shown.points + points);
     for (const l of leagues) if (!shown.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) shown.leagues.push(l);
