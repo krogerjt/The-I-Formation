@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { liveSetup } from './setup.js';
-import { NFLPlays, describePlay, gainedOn, namePattern, readPlay, scoredTouchdown } from '../src/providers/plays.js';
+import { NFLPlays, describePlay, distinctShortName, gainedOn, namePattern, readPlay, scoredTouchdown } from '../src/providers/plays.js';
 
 // Every play text here is copied from ESPN's play-by-play for the games of November 13–15, 2026.
 
@@ -112,6 +112,7 @@ test('two players ESPN writes the same way are told apart by the team with the b
   // CAR at NO: Trevor Etienne (CAR) and Travis Etienne Jr. (NO) are both "T.Etienne".
   const fetch = async () => new Response(JSON.stringify({
     header: { competitions: [{ competitors: [{ id: '18', team: { abbreviation: 'NO' } }, { id: '29', team: { abbreviation: 'CAR' } }] }] },
+    boxscore: { players: [{ statistics: [{ name: 'receiving', athletes: [{ athlete: { displayName: 'Travis Etienne Jr.' } }, { athlete: { displayName: 'Trevor Etienne' } }] }] }] },
     drives: { current: { plays: [
       { id: '1', start: { team: { id: '29' } }, text: '(Shotgun) B.Young pass short left to T.Etienne to NO 41 for 6 yards (J.Sanker).' },
       { id: '2', start: { team: { id: '18' } }, text: '(Shotgun) T.Shough pass short right to T.Etienne to NO 10 for 6 yards (T.Dodson).' },
@@ -120,4 +121,8 @@ test('two players ESPN writes the same way are told apart by the team with the b
   assert.equal((await plays.latestFor('401873055', 'Trevor Etienne', 'CAR')).id, '1');
   assert.equal((await plays.latestFor('401873055', 'Travis Etienne Jr.', 'NO')).id, '2');
   assert.equal((await plays.latestFor('401873055', 'Trevor Etienne')).id, '2', 'without a team, the latest');
+  // The app writes them so you can tell which is which.
+  assert.equal((await plays.latestFor('401873055', 'Trevor Etienne', 'CAR')).shortName, 'Tre. Etienne');
+  assert.equal((await plays.latestFor('401873055', 'Travis Etienne Jr.', 'NO')).shortName, 'Tra. Etienne');
+  assert.equal(distinctShortName('Josh Allen', ['Josh Allen', 'Garrett Wilson']), 'J. Allen');
 });

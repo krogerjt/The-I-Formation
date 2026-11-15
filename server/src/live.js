@@ -78,7 +78,10 @@ export class LiveFeed {
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
-        player: player.name, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
+        player: player.name, nflTeam: player.nflTeam,
+        // "Tra. Etienne" when another player in the game is also "T. Etienne".
+        text: play?.shortName ? text.replace(shortName(player.name), play.shortName) : text,
+        points, leagues, playId: play?.id ?? null,
       };
       this.events.unshift(event);
       this.eventPlayers.set(event, player.key);

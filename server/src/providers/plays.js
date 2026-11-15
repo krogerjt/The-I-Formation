@@ -28,6 +28,8 @@ export class NFLPlays {
         value.push({ id, text, touchdown: isTouchdown(play), team: teams.get(String(play.start?.team?.id)) ?? null });
       }
     }
+    // Everyone in the game's box score, to tell apart two players whose short names are the same.
+    value.names = [...new Set((data?.boxscore?.players || []).flatMap(t => (t.statistics || []).flatMap(c => (c.athletes || []).map(a => a.athlete?.displayName).filter(Boolean))))];
     this.cache.set(gameId, { at: this.now(), value });
     for (const [key, entry] of this.cache) if (this.now() - entry.at > 10 * 60 * 1000) this.cache.delete(key);
     return value;
@@ -43,14 +45,16 @@ export class NFLPlays {
     const plays = await this.plays(gameId);
     const pattern = namePattern(name);
     if (!pattern) return null;
+    // The play, with the player's name as the app should write it in this game ("Tra. Etienne").
+    const named = play => ({ ...play, shortName: distinctShortName(name, plays.names || []) });
     let latest = null, seen = 0;
     for (let i = plays.length - 1; i >= 0 && seen < 12; i--) {
       if (!pattern.test(plays[i].text) || (team && plays[i].team && plays[i].team !== team)) continue;
       latest ||= plays[i];
       seen++;
-      if (gainedOn(plays[i].text, name)) return plays[i];
+      if (gainedOn(plays[i].text, name)) return named(plays[i]);
     }
-    return latest;
+    return latest && named(latest);
   }
 }
 
@@ -68,6 +72,19 @@ export function shortName(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(p => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(p));
   if (parts.length < 2) return parts[0] || '';
   return `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
+}
+
+// shortName, with more of the first name when another player in the same game would read the same:
+// Travis Etienne Jr. and Trevor Etienne are "Tra. Etienne" and "Tre. Etienne".
+export function distinctShortName(name, others) {
+  const short = shortName(name);
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  const rivals = others.filter(o => o !== name && shortName(o) === short).map(o => o.trim().split(/\s+/)[0]);
+  if (!rivals.length) return short;
+  let n = 1;
+  while (n < first.length && rivals.some(r => r.slice(0, n).toLowerCase() === first.slice(0, n).toLowerCase())) n++;
+  const same = rivals.some(r => r.toLowerCase() === first.toLowerCase());
+  return n === 1 || same ? short : `${first.slice(0, n)}.${short.slice(2)}`;
 }
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
