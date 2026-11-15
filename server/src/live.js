@@ -67,7 +67,7 @@ export class LiveFeed {
     }));
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {
-      const text = play ? describePlay(play.text, player.name) : `${shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
+      const text = play ? describePlay(play.text, player.name) : `${player.position === 'DEF' ? player.name : shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
       const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
       const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey));
       if (tdKey) this.seenTouchdowns.add(tdKey);
