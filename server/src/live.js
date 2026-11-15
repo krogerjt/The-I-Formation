@@ -42,6 +42,7 @@ export class LiveFeed {
   async poll() {
     const board = await this.aggregator.scoreboard();
     this.board = board;
+    const since = this.polledAt || null;
     this.polledAt = this.now();
     const weekKey = `${board.season}:${board.week}`;
     const first = this.week !== weekKey;
@@ -57,13 +58,15 @@ export class LiveFeed {
         if (first || before == null || p.points <= before) continue;
         let gain = gains.get(p.key);
         if (!gain) gains.set(p.key, gain = { player: p, points: 0, leagues: [] });
-        gain.points = Math.max(gain.points, round(p.points - before));
+        // The league with the biggest change is the one whose scoring the play is matched against.
+        if (round(p.points - before) > gain.points) Object.assign(gain, { points: round(p.points - before), matchupId: m.id });
         gain.leagues.push({ platform: m.platform, leagueName: m.leagueName });
       }
     }
 
     const found = await Promise.all([...gains.values()].map(async gain => {
-      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam).catch(() => null) : null;
+      const fit = { points: gain.points, scoring: this.aggregator.scoringFor?.(gain.matchupId) ?? null, credited: this.credited(gain.player.key), since };
+      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam, fit).catch(() => null) : null;
       return { gain, play };
     }));
     // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
@@ -89,6 +92,13 @@ export class LiveFeed {
     }
     this.events.length = Math.min(this.events.length, MAX_EVENTS);
     return board;
+  }
+
+  // Play id -> points already shown for this player on it.
+  credited(playerKey) {
+    const shown = new Map();
+    for (const e of this.events) if (e.playId && this.eventPlayers.get(e) === playerKey) shown.set(e.playId, round((shown.get(e.playId) ?? 0) + e.points));
+    return shown;
   }
 
   addToShown({ gain: { player, points, leagues }, play }) {

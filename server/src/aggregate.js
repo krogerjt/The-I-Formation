@@ -6,6 +6,7 @@ export class Aggregator {
   constructor({ sleeper, espn, yahoo, nfl, players, store, ttl = 30000, now = Date.now }) {
     Object.assign(this, { sleeper, espn, yahoo, nfl, players, store, ttl, now });
     this.cache = new Map();
+    this.scoring = new Map(); // matchup id ('sleeper:L1') -> the league's scoring profile, kept out of the app's JSON
   }
 
   async currentWeek() {
@@ -40,6 +41,10 @@ export class Aggregator {
       if (result.status === 'fulfilled') matchups.push(...result.value.filter(m => m.me));
       else errors.push({ platform: jobs[i][0], message: result.reason?.message || 'Request failed.' });
     });
+    for (const m of matchups) {
+      if (m.scoring) this.scoring.set(`${m.platform}:${m.leagueId}`, m.scoring);
+      delete m.scoring;
+    }
     for (const m of matchups) for (const s of [m.me, m.opponent]) for (const p of s?.players || []) {
       p.key = this.players.keyFor(p);
       p.gameId = games.get(p.nflTeam)?.id || null;
@@ -49,6 +54,9 @@ export class Aggregator {
     if (this.cache.size > 20) this.cache.delete(this.cache.keys().next().value);
     return value;
   }
+
+  // The scoring rules of one league, by matchup id. Null until it's been read.
+  scoringFor(matchupId) { return this.scoring.get(matchupId) || null; }
 
   async scoreboard(options) {
     const data = await this.collect(options);

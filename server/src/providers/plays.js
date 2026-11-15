@@ -1,5 +1,6 @@
 import { getJSON } from './http.js';
 import { nflTeam } from '../model.js';
+import { pointsFor } from '../scoring.js';
 
 // NFL play-by-play from ESPN's public game summary (no auth), used to say what a fantasy player just did:
 // "M. Nabers caught pass for 20 yards". Fantasy platforms only report point totals, not plays.
@@ -11,8 +12,8 @@ export class NFLPlays {
     this.cache = new Map();
   }
 
-  // Every play of one game so far, oldest first: { id, text, touchdown, team }, where team is the side
-  // with the ball.
+  // Every play of one game so far, oldest first: { id, text, touchdown, team, at }, where team is the side
+  // with the ball and at is when it happened (ms), when ESPN says.
   async plays(gameId) {
     const cached = this.cache.get(gameId);
     if (cached && this.now() - cached.at < this.ttl) return cached.value;
@@ -25,7 +26,7 @@ export class NFLPlays {
         const id = String(play.id ?? ''), text = String(play.text || '');
         if (!id || !text || seen.has(id)) continue;
         seen.add(id);
-        value.push({ id, text, touchdown: isTouchdown(play), team: teams.get(String(play.start?.team?.id)) ?? null });
+        value.push({ id, text, touchdown: isTouchdown(play), team: teams.get(String(play.start?.team?.id)) ?? null, at: Date.parse(play.wallclock) || null });
       }
     }
     // Everyone in the game's box score, to tell apart two players whose short names are the same.
@@ -41,21 +42,48 @@ export class NFLPlays {
   // a 16-yard scramble followed by a 4-yard loss on a completion is the scramble's points, not the loss's.
   // Falls back to the latest play that mentions him, or null. With his NFL team, plays by the other side
   // are skipped: Travis Etienne Jr. (NO) and Trevor Etienne (CAR) are both "T.Etienne" to ESPN.
-  async latestFor(gameId, name, team = null) {
+  //
+  // Given the point change and the league's scoring ({ points, scoring, credited, since }), it picks the
+  // play whose points fit the change instead: +0.1 is a 1-yard run, not the catch for -1 yards after it
+  // that a PPR league scores +0.9. `credited` (play id -> points already shown for it) leaves room for a
+  // play whose points come in pieces, and `since` (the poll before last, ms) favors plays made since then.
+  async latestFor(gameId, name, team = null, fit = null) {
     const plays = await this.plays(gameId);
     const pattern = namePattern(name);
     if (!pattern) return null;
     // The play, with the player's name as the app should write it in this game ("Tra. Etienne").
     const named = play => ({ ...play, shortName: distinctShortName(name, plays.names || []) });
     let latest = null, seen = 0;
+    const gained = [];
     for (let i = plays.length - 1; i >= 0 && seen < 12; i--) {
       if (!pattern.test(plays[i].text) || (team && plays[i].team && plays[i].team !== team)) continue;
       latest ||= plays[i];
       seen++;
-      if (gainedOn(plays[i].text, name)) return named(plays[i]);
+      if (!gainedOn(plays[i].text, name)) continue;
+      if (fit?.points == null) return named(plays[i]);
+      gained.push(plays[i]);
     }
-    return latest && named(latest);
+    const best = bestFit(gained, name, fit || {});
+    return best ? named(best) : latest && named(latest);
   }
+}
+
+// Of the plays that gained this player something (newest first), the one whose points best fit the change.
+// A newer play wins a close call; a play whose points were all shown already is out; a change smaller than
+// a play's points can be its first piece, which fits less well than an exact match.
+const STAT_LAG = 3 * 60 * 1000;
+function bestFit(plays, name, { points, scoring, credited = new Map(), since = null } = {}) {
+  if (!plays.length) return null;
+  const recent = since ? plays.filter(p => p.at == null || p.at >= since - STAT_LAG) : plays;
+  let best = null, bestCost = Infinity;
+  (recent.length ? recent : plays).forEach((play, rank) => {
+    const left = (pointsFor(statsFor(play.text, name), scoring || undefined) ?? points) - (credited.get(play.id) ?? 0);
+    if (credited.has(play.id) && left <= 0.05) return;
+    const miss = Math.abs(left - points);
+    const cost = (points < left - 0.05 ? Math.min(miss, 0.5) : miss) + 0.1 * rank;
+    if (cost < bestCost) { best = play; bestCost = cost; }
+  });
+  return best;
 }
 
 function isTouchdown(play) {
@@ -140,6 +168,43 @@ export function readPlay(text) {
 const cleanText = text => { const { main, stood } = readPlay(text); return main || stood; };
 const shorten = clean => clean.length > 90 ? `${clean.slice(0, 87)}…` : clean;
 
+const PLAYER = '([A-Z][\\w\'.-]*\\.\\s?[A-Z][\\w\'.-]*(?:\\s[A-Z][\\w\'.-]*)?)';
+// "J.Dart pass short middle to M.Nabers to NYG 45 for 12 yards": passer, receiver, gain.
+const PASS_PLAY = new RegExp(`^${PLAYER} pass .*?\\bto ${PLAYER}(?: to (?:\\S+ )?-?\\d+)?(?: (?:pushed|ran) ob at (?:\\S+ )?-?\\d+)? for (-?\\d+ yards?|no gain)`);
+// Runs: "B.Robinson up the middle to ATL 41 for 1 yard", "A.Kamara to CAR 26 for 1 yard",
+// "A.Jones left end for 1 yard, TOUCHDOWN". Not passes (an interception thrown "short middle" is
+// returned "for 25 yards"), kneels, sacks or aborted snaps.
+const RUN_PLAY = new RegExp(`^${PLAYER} (?!pass |sacked |kneels )(?:scrambles )?(?:(?:up the middle|left|right|[a-z ]*?(?:end|tackle|guard|middle)|to|pushed|ran)\\b.*? )?for (-?\\d+ yards?|no gain)`);
+const FIELD_GOAL = /^(.+?) (\d+) yard field goal is GOOD/i;
+const yardsIn = s => /^no\b/.test(s) ? 0 : Number(s.split(' ')[0]);
+
+// What this player put in the box score on the play, for scoring it:
+// { passCmp, passYd, passTd } / { rec, recYd, recTd } / { rushYd, rushTd } / { fg } / { pat } / { rec2pt } ...
+// Null when the play gained him nothing that scores.
+export function statsFor(text, name) {
+  const me = namePattern(name);
+  if (!me) return null;
+  const { main, extraPoint, twoPoint, nullified } = readPlay(text);
+  if (nullified) return null;
+  const td = /\bTOUCHDOWN\b/.test(main) ? 1 : 0;
+  let m = PASS_PLAY.exec(main);
+  if (m && me.test(m[2])) return { rec: 1, recYd: yardsIn(m[3]), recTd: td };
+  if (m && me.test(m[1])) return { passCmp: 1, passYd: yardsIn(m[3]), passTd: td };
+  m = FIELD_GOAL.exec(main);
+  if (m && me.test(m[1])) return { fg: Number(m[2]) };
+  m = RUN_PLAY.exec(main);
+  if (m && me.test(m[1])) return { rushYd: yardsIn(m[2]), rushTd: td };
+  if (extraPoint && me.test(extraPoint)) return { pat: 1 };
+  if (twoPoint) {
+    m = new RegExp(`^${PLAYER} pass to ${PLAYER}`).exec(twoPoint);
+    if (m && me.test(m[2])) return { rec2pt: 1 };
+    if (m && me.test(m[1])) return { pass2pt: 1 };
+    m = new RegExp(`^${PLAYER} `).exec(twoPoint);
+    if (m && me.test(m[1])) return { rush2pt: 1 };
+  }
+  return null;
+}
+
 // The sentence for a play where this player gained something, or null when the play isn't one of those.
 export function describeKnown(text, name) {
   const who = shortName(name), me = namePattern(name);
@@ -148,20 +213,17 @@ export function describeKnown(text, name) {
   const td = /\bTOUCHDOWN\b/.test(clean);
   const tail = td ? ', touchdown' : '';
   const num = s => /^no\b/.test(s) ? 0 : Number(s);
-  const P = '([A-Z][\\w\'.-]*\\.\\s?[A-Z][\\w\'.-]*(?:\\s[A-Z][\\w\'.-]*)?)';
+  const P = PLAYER;
 
-  let m = new RegExp(`^${P} pass .*?\\bto ${P}(?: to (?:\\S+ )?-?\\d+)?(?: (?:pushed|ran) ob at (?:\\S+ )?-?\\d+)? for (-?\\d+ yards?|no gain)`).exec(clean);
+  let m = PASS_PLAY.exec(clean);
   if (m && me) {
     const gain = num(m[3].split(' ')[0]);
     if (me.test(m[2])) return `${who} caught pass for ${yards(gain)}${tail}`;
     if (me.test(m[1])) return td ? `${who} threw ${gain}-yard touchdown pass` : `${who} completed pass for ${yards(gain)}`;
   }
-  m = /^(.+?) (\d+) yard field goal is GOOD/i.exec(clean);
+  m = FIELD_GOAL.exec(clean);
   if (m && me?.test(m[1])) return `${who} made ${m[2]}-yard field goal`;
-  // Runs: "B.Robinson up the middle to ATL 41 for 1 yard", "A.Kamara to CAR 26 for 1 yard",
-  // "A.Jones left end for 1 yard, TOUCHDOWN". Not passes (an interception thrown "short middle" is
-  // returned "for 25 yards"), kneels, sacks or aborted snaps.
-  m = new RegExp(`^${P} (?!pass |sacked |kneels )(?:scrambles )?(?:(?:up the middle|left|right|[a-z ]*?(?:end|tackle|guard|middle)|to|pushed|ran)\\b.*? )?for (-?\\d+ yards?|no gain)`).exec(clean);
+  m = RUN_PLAY.exec(clean);
   if (m && me?.test(m[1])) return `${who} ran for ${yards(num(m[2].split(' ')[0]))}${tail}`;
   // The kick or two-point try after a touchdown is part of the touchdown's text.
   if (extraPoint && me?.test(extraPoint)) return `${who} made extra point`;

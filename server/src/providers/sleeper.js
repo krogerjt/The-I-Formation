@@ -1,5 +1,6 @@
 import { player, side } from '../model.js';
 import { getJSON } from './http.js';
+import { sleeperScoring } from '../scoring.js';
 
 // Sleeper's public, read-only API. No auth: a user is found by username.
 // https://docs.sleeper.com
@@ -39,7 +40,7 @@ export class SleeperProvider {
       this.get(`/league/${league.league_id}/matchups/${week}`),
     ]);
     const mine = rosters.find(r => r.owner_id === userId || (r.co_owners || []).includes(userId));
-    const base = { platform: 'sleeper', leagueId: league.league_id, leagueName: league.name, week };
+    const base = { platform: 'sleeper', leagueId: league.league_id, leagueName: league.name, week, scoring: sleeperScoring(league.scoring_settings) };
     if (!mine) return { ...base, me: null, opponent: null };
     const entries = matchups || [];
     const myEntry = entries.find(m => m.roster_id === mine.roster_id);
