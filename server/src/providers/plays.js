@@ -30,13 +30,21 @@ export class NFLPlays {
     return value;
   }
 
-  // The most recent play that mentions this player, or null.
+  // The play that most likely earned this player's new points: the latest one that mentions him and that
+  // gained something (a catch, run, completion or kick). Fantasy points often update a play or two late,
+  // so a newer sack or incompletion is skipped. Falls back to the latest play that mentions him, or null.
   async latestFor(gameId, name) {
     const plays = await this.plays(gameId);
     const pattern = namePattern(name);
     if (!pattern) return null;
-    for (let i = plays.length - 1; i >= 0; i--) if (pattern.test(plays[i].text)) return plays[i];
-    return null;
+    let latest = null, seen = 0;
+    for (let i = plays.length - 1; i >= 0 && seen < 12; i--) {
+      if (!pattern.test(plays[i].text)) continue;
+      latest ||= plays[i];
+      seen++;
+      if (describeKnown(plays[i].text, name)) return plays[i];
+    }
+    return latest;
   }
 }
 
@@ -68,11 +76,19 @@ const yards = n => n === 1 || n === -1 ? `${n} yard` : `${n} yards`;
 
 // A short sentence about what this player did on the play, written from his point of view.
 export function describePlay(text, name) {
+  return describeKnown(text, name) ?? shorten(cleanText(text));
+}
+
+const cleanText = text => String(text || '')
+  .replace(/^\s*\([^)]*\)\s*/, '')              // (Shotgun), (No Huddle, Shotgun)
+  .replace(/\s+PENALTY on .*$/i, '')
+  .replace(/\s+/g, ' ').trim();
+const shorten = clean => clean.length > 90 ? `${clean.slice(0, 87)}…` : clean;
+
+// The sentence for a play where this player gained something, or null when the play isn't one of those.
+export function describeKnown(text, name) {
   const who = shortName(name), me = namePattern(name);
-  const clean = String(text || '')
-    .replace(/^\s*\([^)]*\)\s*/, '')              // (Shotgun), (No Huddle, Shotgun)
-    .replace(/\s+PENALTY on .*$/i, '')
-    .replace(/\s+/g, ' ').trim();
+  const clean = cleanText(text);
   const td = /\bTOUCHDOWN\b/.test(clean);
   const tail = td ? ', touchdown' : '';
   const num = s => s === 'no gain' ? 0 : Number(s);
@@ -89,6 +105,5 @@ export function describePlay(text, name) {
   if (me && new RegExp(`${me.source} extra point is GOOD`, 'i').test(clean)) return `${who} made extra point`;
   m = new RegExp(`^${P} (?:scrambles )?(?:up the middle|left|right|[a-z ]*?(?:end|tackle|guard|middle))\\b.*? for (-?\\d+ yards?|no gain)`).exec(clean);
   if (m && me?.test(m[1])) return `${who} ran for ${yards(num(m[2].split(' ')[0]))}${tail}`;
-  if (me && /\bpass\b/.test(clean) && new RegExp(`^${me.source}`, 'i').test(clean) && /INTERCEPTED/i.test(clean)) return `${who} threw an interception`;
-  return clean.length > 90 ? `${clean.slice(0, 87)}…` : clean;
+  return null;
 }

@@ -34,8 +34,15 @@ final class LiveActivityController {
             }
         }
         Task {
+            // Only one Live Activity at a time. Keep the newest (iOS lists them oldest first) and end the rest.
+            let existing = Activity<ScoresActivityAttributes>.activities
+            if let newest = existing.last { await endAll(except: newest.id) }
             for activity in Activity<ScoresActivityAttributes>.activities { watch(activity) }
-            for await activity in Activity<ScoresActivityAttributes>.activityUpdates { watch(activity) }
+            for await activity in Activity<ScoresActivityAttributes>.activityUpdates {
+                // A new one, from the server's push-to-start or from this app, replaces any older one.
+                await endAll(except: activity.id)
+                watch(activity)
+            }
         }
     }
 
@@ -73,6 +80,7 @@ final class LiveActivityController {
     /// Starts the Live Activity showing `slide`. With push on the server it keeps rotating with the app closed.
     func start(week: Int, slide: LiveSlide) async {
         guard isEnabled else { lastError = "Live Activities are off for I Formation. Turn them on in Settings."; return }
+        await endAll(except: nil)
         do {
             let content = ActivityContent(state: slide, staleDate: .now.addingTimeInterval(300))
             _ = try Activity.request(attributes: ScoresActivityAttributes(week: week), content: content,
@@ -91,8 +99,11 @@ final class LiveActivityController {
         }
     }
 
-    func end() async {
-        for activity in Activity<ScoresActivityAttributes>.activities {
+    func end() async { await endAll(except: nil) }
+
+    /// Ends every Live Activity but `keep`, and removes them from the lock screen right away.
+    private func endAll(except keep: String?) async {
+        for activity in Activity<ScoresActivityAttributes>.activities where activity.id != keep {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         syncRunning()

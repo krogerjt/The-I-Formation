@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync, verify } from 'node:crypto';
 import { liveSetup } from './setup.js';
 import { createApp } from '../src/server.js';
-import { describePlay, namePattern, shortName } from '../src/providers/plays.js';
+import { NFLPlays, describeKnown, describePlay, namePattern, shortName } from '../src/providers/plays.js';
 import { APNs } from '../src/apns.js';
 import { LiveActivityDriver, ATTRIBUTES_TYPE } from '../src/live-activity.js';
 import { Store } from '../src/store.js';
@@ -25,6 +25,18 @@ test('plays are described from the fantasy player\'s point of view', () => {
   assert.equal(describePlay('B.Aubrey 52 yard field goal is GOOD, Center-T.Sieg, Holder-B.Anger.', 'Brandon Aubrey'), 'B. Aubrey made 52-yard field goal');
   assert.equal(describePlay('B.Aubrey extra point is GOOD, Center-T.Sieg.', 'Brandon Aubrey'), 'B. Aubrey made extra point');
   assert.match(describePlay('Something unusual happened involving many words '.repeat(4), 'Joe Smith'), /…$/);
+});
+
+test('a gain is matched to the play that earned it, not a newer sack', async () => {
+  const fetch = async () => new Response(JSON.stringify({ drives: { current: { plays: [
+    { id: '1', text: '(Shotgun) D.Maye scrambles right end to DET 17 for 10 yards (B.Branch).' },
+    { id: '2', text: 'D.Maye sacked at DET 15 for -2 yards (A.Hutchinson). DET-A.Hutchinson was injured during the play.' },
+  ] } } }));
+  const plays = new NFLPlays({ fetch, ttl: 0 });
+  const play = await plays.latestFor('401', 'Drake Maye');
+  assert.equal(play.id, '1');
+  assert.equal(describePlay(play.text, 'Drake Maye'), 'D. Maye ran for 10 yards');
+  assert.equal(describeKnown('D.Maye sacked at DET 15 for -2 yards (A.Hutchinson).', 'Drake Maye'), null);
 });
 
 test('the feed turns point changes into plays and queues touchdowns', async () => {
@@ -148,6 +160,44 @@ test('a Live Activity started by hand with no game on rotates for an hour, then 
   await driver.tick();
   assert.deepEqual(sent, ['update', 'end']);
   assert.equal(store.live().activity, null);
+});
+
+test('only one Live Activity: no second push-to-start while waiting, and a new one dismisses the old', async () => {
+  const { feed, store, advance, now } = liveSetup();
+  const sent = [];
+  const apns = { configured: true, send: async (token, payload) => { sent.push({ token, aps: payload.aps }); return { ok: true, status: 200 }; } };
+  const driver = new LiveActivityDriver({ feed, apns, store, now, log: { warn() {}, error() {} } });
+  driver.saveTokens({ pushToStart: 'aa'.repeat(32) });
+  await driver.tick();
+  assert.deepEqual(sent.map(s => s.aps.event), ['start']);
+  // The phone is slow to report the new activity's token; the server must not start more of them.
+  for (let i = 0; i < 40; i++) { advance(30000); await driver.tick(); }
+  assert.deepEqual(sent.map(s => s.aps.event), ['start']);
+
+  driver.saveTokens({ activityId: 'A1', activityToken: 'bb'.repeat(32) });
+  assert.equal(store.live().activity.manual, false, 'the token belongs to the activity the server started');
+  assert.equal(store.live().pending, null);
+
+  // Another one shows up (started from the app): the old one is ended and dismissed at once.
+  driver.saveTokens({ activityId: 'A2', activityToken: 'cc'.repeat(32) });
+  await new Promise(resolve => setImmediate(resolve));
+  const end = sent.at(-1);
+  assert.equal(end.token, 'bb'.repeat(32));
+  assert.equal(end.aps.event, 'end');
+  assert.equal(end.aps['dismissal-date'], end.aps.timestamp);
+  assert.equal(store.live().activity.id, 'A2');
+});
+
+test('a placeholder saved by the older server is treated as a pending start', async () => {
+  const { feed, store, now } = liveSetup();
+  const sent = [];
+  const apns = { configured: true, send: async (token, payload) => { sent.push(payload.aps.event); return { ok: true, status: 200 }; } };
+  const driver = new LiveActivityDriver({ feed, apns, store, now, log: { warn() {}, error() {} } });
+  store.setLive({ pushToStart: 'aa'.repeat(32), activity: { id: null, token: null, startedAt: now() } });
+  await driver.tick();
+  assert.deepEqual(sent, []);
+  assert.equal(store.live().activity, null);
+  assert.ok(store.live().pending);
 });
 
 test('the driver forgets a token Apple says is dead', async () => {
