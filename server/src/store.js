@@ -14,7 +14,7 @@ export class Store {
   }
 
   read() {
-    const empty = { sleeper: null, espn: [], yahoo: null, live: { auto: true, pushToStart: null, activity: null } };
+    const empty = { sleeper: null, espn: [], yahoo: null, live: { auto: true, pushToStart: null, activity: null, pending: null } };
     if (!this.path) return empty;
     let raw;
     try { raw = readFileSync(this.path); } catch (error) { if (error.code === 'ENOENT') return empty; throw error; }
@@ -63,7 +63,8 @@ export class Store {
 
   saveYahooTokens(tokens) { this.state.yahoo = tokens ? { tokens } : null; this.write(); }
 
-  // Live Activity settings and push tokens: { auto, pushToStart, activity: { id, token, startedAt } }.
-  live() { return { auto: true, pushToStart: null, activity: null, ...this.state.live }; }
+  // Live Activity settings and push tokens: { auto, pushToStart, activity: { id, token, startedAt, manual },
+  // pending: { startedAt } while a server-started one waits for the phone to report its token }.
+  live() { return { auto: true, pushToStart: null, activity: null, pending: null, ...this.state.live }; }
   setLive(patch) { this.state.live = { ...this.live(), ...patch }; this.write({ bump: false }); }
 }
