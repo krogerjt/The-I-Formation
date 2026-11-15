@@ -1,4 +1,4 @@
-import { describePlay, shortName } from './providers/plays.js';
+import { describePlay, scoredTouchdown, shortName } from './providers/plays.js';
 import { round } from './model.js';
 
 // The live feed behind the Feed tab and the Live Activity.
@@ -67,13 +67,24 @@ export class LiveFeed {
     }));
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {
+      // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
+      // later), so more points from the play already shown for this player go onto that event.
+      const earlier = play && this.events.find(e => e.playId === play.id && e.playerKey === player.key);
+      if (earlier) {
+        earlier.points = round(earlier.points + points);
+        for (const l of leagues) if (!earlier.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) earlier.leagues.push(l);
+        this.events.splice(this.events.indexOf(earlier), 1);
+        this.events.unshift(earlier);
+        continue;
+      }
       const text = play ? describePlay(play.text, player.name) : `${shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
-      const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
+      // Only the passer, receiver or runner scored it, not the kicker of the extra point that shares its text.
+      const tdKey = play?.touchdown && scoredTouchdown(play.text, player.name) ? `${play.id}|${player.key}` : null;
       const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey));
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
-        player: player.name, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
+        player: player.name, playerKey: player.key, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
       };
       this.events.unshift(event);
       if (touchdown) this.pendingTouchdowns.push(event);

@@ -31,8 +31,10 @@ export class NFLPlays {
   }
 
   // The play that most likely earned this player's new points: the latest one that mentions him and that
-  // gained something (a catch, run, completion or kick). Fantasy points often update a play or two late,
-  // so a newer sack or incompletion is skipped. Falls back to the latest play that mentions him, or null.
+  // gained something (a catch, a run or completion for positive yards, a kick or a two-point try). Fantasy
+  // points often update a play or two late, so a newer sack, incompletion or run for a loss is skipped:
+  // a 16-yard scramble followed by a 4-yard loss on a completion is the scramble's points, not the loss's.
+  // Falls back to the latest play that mentions him, or null.
   async latestFor(gameId, name) {
     const plays = await this.plays(gameId);
     const pattern = namePattern(name);
@@ -42,7 +44,7 @@ export class NFLPlays {
       if (!pattern.test(plays[i].text)) continue;
       latest ||= plays[i];
       seen++;
-      if (describeKnown(plays[i].text, name)) return plays[i];
+      if (gainedOn(plays[i].text, name)) return plays[i];
     }
     return latest;
   }
@@ -51,8 +53,10 @@ export class NFLPlays {
 function isTouchdown(play) {
   const type = `${play.type?.text || ''} ${play.type?.abbreviation || ''}`;
   if (/touchdown|\bTD\b/i.test(type) && !/two-point|2pt/i.test(type)) return true;
-  // Reversed or nullified touchdowns still say TOUCHDOWN, so only trust the text when nothing undid it.
-  return /\bTOUCHDOWN\b/.test(play.text || '') && !/\b(NULLIFIED|REVERSED|No Play)\b/i.test(play.text || '');
+  // A touchdown taken away by a penalty or replay still says TOUCHDOWN somewhere, so read only the call
+  // that stood.
+  const { main, nullified } = readPlay(play.text);
+  return !nullified && /\bTOUCHDOWN\b/.test(main);
 }
 
 // "Malik Nabers" -> "M. Nabers", the way the app and ESPN abbreviate names.
@@ -64,37 +68,68 @@ export function shortName(name) {
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// ESPN writes players as "M.Nabers" or "A.St. Brown". Matches the initial and the last name.
+// ESPN writes players as "M.Nabers" or "A.St. Brown". When two players in a game share an initial and last
+// name it spells out more of the first name ("Bri.Thomas", "Jo.Williams"), so any start of it matches.
 export function namePattern(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(p => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(p));
   if (parts.length < 2) return null;
   const last = parts.slice(1).join(' ').split(/\s+/).map(escape).join('\\s?');
-  return new RegExp(`\\b${escape(parts[0][0])}\\.\\s?${last}\\b`, 'i');
+  const first = /^[A-Za-z]+/.exec(parts[0])?.[0] || parts[0][0];
+  const starts = Array.from(first, (_, i) => escape(first.slice(0, i + 1))).reverse().join('|');
+  return new RegExp(`\\b(?:${starts})\\.\\s?${last}\\b`, 'i');
 }
 
-const yards = n => n === 1 || n === -1 ? `${n} yard` : `${n} yards`;
+const yards = n => n === 0 ? 'no gain' : n === 1 || n === -1 ? `${n} yard` : `${n} yards`;
 
 // A short sentence about what this player did on the play, written from his point of view.
 export function describePlay(text, name) {
   return describeKnown(text, name) ?? shorten(cleanText(text));
 }
 
-const cleanText = text => String(text || '')
-  .replace(/^\s*\([^)]*\)\s*/, '')              // (Shotgun), (No Huddle, Shotgun)
-  .replace(/\s+PENALTY on .*$/i, '')
-  .replace(/\s+/g, ' ').trim();
+// A player as ESPN writes one: "M.Nabers", "Bri.Thomas", "A.St. Brown", "L.Van Ness". The part before the dot is
+// short, so "TOUCHDOWN. D.Zvada" isn't read as one name.
+const NAME = "\\b[A-Z][A-Za-z]{0,4}\\.\\s?[A-Z][\\w'.-]*(?:\\s[A-Z][\\w'.-]*)?";
+const NOTE_IN_FRONT = new RegExp(`^(?:\\([^)]*\\)|${NAME} reported in as eligible\\.|Direct snap to ${NAME}\\.(?=\\s))\\s*`);
+
+// Splits ESPN's text for one play into the call that stood and the tries after a touchdown.
+//   main: the play itself, without what ESPN puts in front ("(14:12) (Shotgun)", "C.Tiernan reported in as
+//         eligible.", "Direct snap to T.Kraft."), the penalties and injury notes behind it, or the extra
+//         point or two-point try that ESPN adds to a touchdown's text.
+//   extraPoint: "W.Reichard extra point is GOOD" when one is in the text.
+//   twoPoint: "K.McCord pass to G.Dulcich is complete" when a two-point try succeeded.
+//   nullified: a penalty wiped the play out ("- No Play", "TOUCHDOWN NULLIFIED"), so nobody gained anything.
+//   stood: all of the call that stood, penalties included.
+// After a replay reversal ESPN gives the original call, then "the play was REVERSED.", then the call that
+// stood, so only the text after the reversal counts.
+export function readPlay(text) {
+  let s = String(text || '').replace(/\s+/g, ' ');
+  const reversed = s.lastIndexOf('REVERSED.');
+  if (reversed >= 0) s = s.slice(reversed + 'REVERSED.'.length);
+  s = s.replace(/\s*\*\*.*$/, '').trim();
+  for (let before; before !== s;) { before = s; s = s.replace(NOTE_IN_FRONT, ''); }
+  const twoPoint = /TWO-POINT CONVERSION ATTEMPT\.\s*(.*?)\.?\s*ATTEMPT SUCCEEDS/.exec(s)?.[1] ?? null;
+  const extraPoint = new RegExp(`${NAME} extra point is GOOD`).exec(s)?.[0] ?? null;
+  const play = s.replace(/\s*TWO-POINT CONVERSION ATTEMPT\..*$/, '');
+  const nullified = /- No Play\b|\bNULLIFIED\b/.test(play);
+  const main = play.replace(new RegExp(`\\s*${NAME} extra point is .*$`), '').replace(/\s*\bPENALTY on .*$/i, '').trim();
+  return { main, extraPoint, twoPoint, nullified, stood: s };
+}
+
+// The text to show when the play isn't one this file can put into words. A play that's only a penalty keeps it.
+const cleanText = text => { const { main, stood } = readPlay(text); return main || stood; };
 const shorten = clean => clean.length > 90 ? `${clean.slice(0, 87)}…` : clean;
 
 // The sentence for a play where this player gained something, or null when the play isn't one of those.
 export function describeKnown(text, name) {
   const who = shortName(name), me = namePattern(name);
-  const clean = cleanText(text);
+  const { main: clean, extraPoint, twoPoint, nullified } = readPlay(text);
+  if (nullified) return null;
   const td = /\bTOUCHDOWN\b/.test(clean);
   const tail = td ? ', touchdown' : '';
-  const num = s => s === 'no gain' ? 0 : Number(s);
+  const num = s => /^no\b/.test(s) ? 0 : Number(s);
   const P = '([A-Z][\\w\'.-]*\\.\\s?[A-Z][\\w\'.-]*(?:\\s[A-Z][\\w\'.-]*)?)';
 
-  let m = new RegExp(`^${P} pass .*?\\bto ${P}(?: to \\S+ \\d+)?(?: (?:pushed|ran) ob at \\S+ \\d+)? for (-?\\d+ yards?|no gain)`).exec(clean);
+  let m = new RegExp(`^${P} pass .*?\\bto ${P}(?: to (?:\\S+ )?-?\\d+)?(?: (?:pushed|ran) ob at (?:\\S+ )?-?\\d+)? for (-?\\d+ yards?|no gain)`).exec(clean);
   if (m && me) {
     const gain = num(m[3].split(' ')[0]);
     if (me.test(m[2])) return `${who} caught pass for ${yards(gain)}${tail}`;
@@ -102,8 +137,38 @@ export function describeKnown(text, name) {
   }
   m = /^(.+?) (\d+) yard field goal is GOOD/i.exec(clean);
   if (m && me?.test(m[1])) return `${who} made ${m[2]}-yard field goal`;
-  if (me && new RegExp(`${me.source} extra point is GOOD`, 'i').test(clean)) return `${who} made extra point`;
-  m = new RegExp(`^${P} (?:scrambles )?(?:up the middle|left|right|[a-z ]*?(?:end|tackle|guard|middle))\\b.*? for (-?\\d+ yards?|no gain)`).exec(clean);
+  // Runs: "B.Robinson up the middle to ATL 41 for 1 yard", "A.Kamara to CAR 26 for 1 yard",
+  // "A.Jones left end for 1 yard, TOUCHDOWN". Not passes (an interception thrown "short middle" is
+  // returned "for 25 yards"), kneels, sacks or aborted snaps.
+  m = new RegExp(`^${P} (?!pass |sacked |kneels )(?:scrambles )?(?:(?:up the middle|left|right|[a-z ]*?(?:end|tackle|guard|middle)|to|pushed|ran)\\b.*? )?for (-?\\d+ yards?|no gain)`).exec(clean);
   if (m && me?.test(m[1])) return `${who} ran for ${yards(num(m[2].split(' ')[0]))}${tail}`;
+  // The kick or two-point try after a touchdown is part of the touchdown's text.
+  if (extraPoint && me?.test(extraPoint)) return `${who} made extra point`;
+  if (twoPoint && me) {
+    m = new RegExp(`^${P} pass to ${P}`).exec(twoPoint);
+    if (m && me.test(m[2])) return `${who} caught two-point conversion`;
+    if (m && me.test(m[1])) return `${who} threw two-point conversion`;
+    m = new RegExp(`^${P} `).exec(twoPoint);
+    if (m && me.test(m[1])) return `${who} ran in two-point conversion`;
+  }
   return null;
+}
+
+// Whether this player gained points on the play: a catch (worth a point in PPR even for a loss), a run or
+// completion for positive yards, a touchdown, a kick or a two-point try.
+export function gainedOn(text, name) {
+  const said = describeKnown(text, name);
+  if (!said) return false;
+  if (/ caught /.test(said)) return true;
+  const { main } = readPlay(text);
+  if (/\bTOUCHDOWN\b/.test(main) && namePattern(name).test(main)) return true;
+  const gain = / for (-?\d+) yards?\b| for (no gain)\b/.exec(main);
+  return !gain || !namePattern(name).test(main) || Number(gain[1] ?? 0) > 0;
+}
+
+// Whether this player scored the play's touchdown (threw it, caught it or ran it in). Not the kicker of the
+// extra point or the player in the two-point try that ESPN adds to the same play's text.
+export function scoredTouchdown(text, name) {
+  const { main, nullified } = readPlay(text), me = namePattern(name);
+  return Boolean(me && !nullified && /\bTOUCHDOWN\b/.test(main) && me.test(main.replace(/\([^)]*\)|\[[^\]]*\]/g, '')));
 }
