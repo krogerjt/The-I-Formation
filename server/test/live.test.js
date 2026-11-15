@@ -17,11 +17,12 @@ test('plays are described from the fantasy player\'s point of view', () => {
 
   const catchTD = '(Shotgun) J.Dart pass deep left to M.Nabers for 20 yards, TOUCHDOWN.';
   assert.equal(describePlay(catchTD, 'Malik Nabers'), 'M. Nabers caught pass for 20 yards, touchdown');
-  assert.equal(describePlay(catchTD, 'Jaxson Dart'), 'J. Dart threw 20-yard touchdown pass');
+  assert.equal(describePlay(catchTD, 'Jaxson Dart'), 'J. Dart threw 20-yard touchdown pass to M. Nabers');
   assert.equal(describePlay('J.Dart pass short middle to M.Nabers to NYG 45 for 12 yards (D.Smith).', 'Malik Nabers'), 'M. Nabers caught pass for 12 yards');
-  assert.equal(describePlay('J.Dart pass short middle to M.Nabers for 12 yards (D.Smith).', 'Jaxson Dart'), 'J. Dart completed pass for 12 yards');
+  assert.equal(describePlay('J.Dart pass short middle to M.Nabers for 12 yards (D.Smith).', 'Jaxson Dart'), 'J. Dart completed pass to M. Nabers for 12 yards');
   assert.equal(describePlay('(No Huddle) B.Robinson up the middle to ATL 41 for 1 yard (T.Edmunds).', 'Bijan Robinson'), 'B. Robinson ran for 1 yard');
   assert.equal(describePlay('S.Barkley right end for 34 yards, TOUCHDOWN.', 'Saquon Barkley'), 'S. Barkley ran for 34 yards, touchdown');
+  assert.equal(describePlay('J.Goff pass short right to A.St. Brown for 9 yards (K.Joseph).', 'Jared Goff'), 'J. Goff completed pass to A. St. Brown for 9 yards');
   assert.equal(describePlay('B.Aubrey 52 yard field goal is GOOD, Center-T.Sieg, Holder-B.Anger.', 'Brandon Aubrey'), 'B. Aubrey made 52-yard field goal');
   assert.equal(describePlay('B.Aubrey extra point is GOOD, Center-T.Sieg.', 'Brandon Aubrey'), 'B. Aubrey made extra point');
   assert.match(describePlay('Something unusual happened involving many words '.repeat(4), 'Joe Smith'), /…$/);
@@ -54,7 +55,7 @@ test('the feed turns point changes into plays and queues touchdowns', async () =
   assert.equal(feed.events.length, 1);
   const [event] = feed.events;
   assert.equal(event.kind, 'touchdown');
-  assert.equal(event.text, 'P. Mahomes threw 25-yard touchdown pass');
+  assert.equal(event.text, 'P. Mahomes threw 25-yard touchdown pass to T. Kelce');
   assert.equal(event.points, 4);
   assert.deepEqual(event.leagues.map(l => l.leagueName), ['Dynasty Bros']); // only Sleeper's points moved
 

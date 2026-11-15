@@ -98,7 +98,9 @@ export function describeKnown(text, name) {
   if (m && me) {
     const gain = num(m[3].split(' ')[0]);
     if (me.test(m[2])) return `${who} caught pass for ${yards(gain)}${tail}`;
-    if (me.test(m[1])) return td ? `${who} threw ${gain}-yard touchdown pass` : `${who} completed pass for ${yards(gain)}`;
+    // ESPN writes the receiver as "B.Thomas"; show him the way the app writes names, "B. Thomas".
+    const to = m[2].replace(/^([A-Z][a-z]?)\.\s?/, '$1. ');
+    if (me.test(m[1])) return td ? `${who} threw ${gain}-yard touchdown pass to ${to}` : `${who} completed pass to ${to} for ${yards(gain)}`;
   }
   m = /^(.+?) (\d+) yard field goal is GOOD/i.exec(clean);
   if (m && me?.test(m[1])) return `${who} made ${m[2]}-yard field goal`;
