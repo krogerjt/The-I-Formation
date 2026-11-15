@@ -1,4 +1,4 @@
-import { describePlay, shortName } from './providers/plays.js';
+import { describePlay, scoredTouchdown, shortName } from './providers/plays.js';
 import { round } from './model.js';
 
 // The live feed behind the Feed tab and the Live Activity.
@@ -22,6 +22,7 @@ export class LiveFeed {
     this.week = null;
     this.baseline = new Map();     // `${matchupId}|${playerKey}` -> points at the last poll
     this.events = [];              // newest first
+    this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
     this.seenTouchdowns = new Set();
     this.board = null;
@@ -62,24 +63,42 @@ export class LiveFeed {
     }
 
     const found = await Promise.all([...gains.values()].map(async gain => {
-      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name).catch(() => null) : null;
+      const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam).catch(() => null) : null;
       return { gain, play };
     }));
+    // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
+    // later), so more points from the play already shown for this player go onto that event.
+    for (let i = found.length - 1; i >= 0; i--) if (this.addToShown(found[i])) found.splice(i, 1);
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {
       const text = play ? describePlay(play.text, player.name) : `${player.position === 'DEF' ? player.name : shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
       const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
-      const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey));
+      // Only the passer, receiver or runner scored it, not the kicker of the extra point that shares its text.
+      const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey) && scoredTouchdown(play.text, player.name));
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
-        player: player.name, nflTeam: player.nflTeam, text, points, leagues, playId: play?.id ?? null,
+        player: player.name, nflTeam: player.nflTeam,
+        // "Tra. Etienne" when another player in the game is also "T. Etienne".
+        text: play?.shortName ? text.replace(shortName(player.name), play.shortName) : text,
+        points, leagues, playId: play?.id ?? null,
       };
       this.events.unshift(event);
+      this.eventPlayers.set(event, player.key);
       if (touchdown) this.pendingTouchdowns.push(event);
     }
     this.events.length = Math.min(this.events.length, MAX_EVENTS);
     return board;
+  }
+
+  addToShown({ gain: { player, points, leagues }, play }) {
+    const shown = play && this.events.find(e => e.playId === play.id && this.eventPlayers.get(e) === player.key);
+    if (!shown) return false;
+    shown.points = round(shown.points + points);
+    for (const l of leagues) if (!shown.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) shown.leagues.push(l);
+    this.events.splice(this.events.indexOf(shown), 1);
+    this.events.unshift(shown);
+    return true;
   }
 
   scores() {
