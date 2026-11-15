@@ -1,5 +1,6 @@
 import { player, side } from '../model.js';
 import { getJSON, ProviderError } from './http.js';
+import { yahooScoring } from '../scoring.js';
 
 // Yahoo's official Fantasy Sports API, over OAuth 2.0. The client secret stays on this server.
 // https://developer.yahoo.com/fantasysports/guide/
@@ -15,6 +16,7 @@ export const flat = arr => Array.isArray(arr) ? arr.reduce((acc, part) => Array.
 export class YahooProvider {
   constructor({ fetch = globalThis.fetch, clientId, clientSecret, redirectUri, now = Date.now }) {
     Object.assign(this, { fetch, clientId, clientSecret, redirectUri, now });
+    this.scoringCache = new Map();
   }
 
   get configured() { return Boolean(this.clientId && this.clientSecret && this.redirectUri); }
@@ -73,14 +75,28 @@ export class YahooProvider {
 
   async teamMatchup(tokens, team, leagueNames, week) {
     const leagueKey = team.team_key.split('.t.')[0];
-    const base = { platform: 'yahoo', leagueId: leagueKey, leagueName: leagueNames.get(leagueKey) || team.name, week };
-    const data = await this.get(tokens, `/team/${team.team_key}/matchups;weeks=${week}`);
+    const [data, scoring] = await Promise.all([this.get(tokens, `/team/${team.team_key}/matchups;weeks=${week}`), this.scoring(tokens, leagueKey)]);
+    const base = { platform: 'yahoo', leagueId: leagueKey, leagueName: leagueNames.get(leagueKey) || team.name, week, scoring };
     const matchup = items(flat(data.team).matchups)[0]?.matchup;
     const sides = matchup ? items(matchup['0']?.teams).map(t => flat(t.team)) : [];
     const mine = sides.find(s => s.team_key === team.team_key) || team;
     const theirs = sides.find(s => s.team_key !== team.team_key);
     const [myPlayers, theirPlayers] = await Promise.all([this.roster(tokens, team.team_key, week), theirs ? this.roster(tokens, theirs.team_key, week) : []]);
     return { ...base, me: this.side(mine, myPlayers), opponent: theirs ? this.side(theirs, theirPlayers) : null };
+  }
+
+  // The league's scoring rules, fetched at most twice a day. Null when Yahoo won't say.
+  async scoring(tokens, leagueKey) {
+    const cached = this.scoringCache.get(leagueKey);
+    if (cached && this.now() - cached.at < 12 * 60 * 60 * 1000) return cached.value;
+    let value = null;
+    try {
+      const data = await this.get(tokens, `/league/${leagueKey}/settings`);
+      const settings = flat(data.league).settings;
+      value = yahooScoring((Array.isArray(settings) ? flat(settings) : settings)?.stat_modifiers?.stats);
+    } catch { return cached?.value ?? null; }
+    this.scoringCache.set(leagueKey, { at: this.now(), value });
+    return value;
   }
 
   side(team, players) {

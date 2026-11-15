@@ -1,5 +1,6 @@
 import { player, side } from '../model.js';
 import { getJSON, ProviderError } from './http.js';
+import { espnScoring } from '../scoring.js';
 
 // ESPN has no official API. These are the undocumented v3 endpoints ESPN's own site uses, so expect them
 // to change without notice. Public leagues need no auth; private leagues need the espn_s2 and SWID cookies
@@ -34,7 +35,7 @@ export class ESPNProvider {
     const teams = data.teams || [];
     const myTeam = teamId != null ? teams.find(t => String(t.id) === String(teamId))
       : swid ? teams.find(t => (t.owners || []).some(o => o.toUpperCase() === swid.toUpperCase())) : null;
-    const base = { platform: 'espn', leagueId: String(leagueId), leagueName: data.settings?.name || `ESPN league ${leagueId}`, week };
+    const base = { platform: 'espn', leagueId: String(leagueId), leagueName: data.settings?.name || `ESPN league ${leagueId}`, week, scoring: espnScoring(data.settings?.scoringSettings?.scoringItems) };
     if (!myTeam) throw new ProviderError(`Couldn't tell which team is yours in ESPN league ${leagueId}. Set your team ID in Settings.`);
     const game = (data.schedule || []).find(g => g.matchupPeriodId === week && (g.home?.teamId === myTeam.id || g.away?.teamId === myTeam.id));
     if (!game) return { ...base, me: this.side(myTeam, null, data.members), opponent: null };
