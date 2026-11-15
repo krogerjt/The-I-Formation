@@ -78,9 +78,9 @@ export class LiveFeed {
         continue;
       }
       const text = play ? describePlay(play.text, player.name) : `${shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
+      const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
       // Only the passer, receiver or runner scored it, not the kicker of the extra point that shares its text.
-      const tdKey = play?.touchdown && scoredTouchdown(play.text, player.name) ? `${play.id}|${player.key}` : null;
-      const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey));
+      const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey) && scoredTouchdown(play.text, player.name));
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
