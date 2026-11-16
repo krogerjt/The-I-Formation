@@ -23,9 +23,15 @@ struct ScoresLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.bottom) {
-                    LiveSlideView(slide: context.state)
-                        .padding(.horizontal, 4)
-                        .environment(\.colorScheme, .dark)
+                    Group {
+                        if context.state.kind == .score {
+                            IslandScoreSlide(slide: context.state)
+                        } else {
+                            LiveSlideView(slide: context.state)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .environment(\.colorScheme, .dark)
                 }
             } compactLeading: {
                 IslandLeading(slide: context.state)
