@@ -89,3 +89,9 @@ test('the server keeps each league\'s scoring for itself, out of the app\'s scor
   assert.equal(aggregator.scoringFor('sleeper:L1').passTd, 6);
   assert.ok(board.matchups.every(m => !('scoring' in m)));
 });
+
+test('a touchdown catch and the two-point catch after it are one stat line', () => {
+  const text = '(Shotgun) A.Rodgers pass deep left to D.Metcalf for 22 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. A.Rodgers pass to D.Metcalf is complete. ATTEMPT SUCCEEDS.';
+  assert.deepEqual(statsFor(text, 'DK Metcalf'), { rec: 1, recYd: 22, recTd: 1, rec2pt: 1 });
+  assert.equal(pointsFor(statsFor(text, 'DK Metcalf'), sleeperScoring({ rec: 1, rec_yd: 0.1, rec_td: 6, rec_2pt: 2 })), 11.2);
+});

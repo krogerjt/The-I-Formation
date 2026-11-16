@@ -16,6 +16,7 @@ import { round } from './model.js';
 
 const MAX_EVENTS = 60;
 const TOUCHDOWN_SHOWN_FOR = 10 * 60 * 1000; // a touchdown that hasn't been shown in 10 minutes is old news
+const UNSEEN_PLAY_FOR = 5 * 60 * 1000;      // a play the Live Activity hasn't shown yet still goes ahead of scores this long
 const PLAY_WAIT = 3 * 60 * 1000;            // how long a point change waits for ESPN to post its play
 
 export class LiveFeed {
@@ -26,6 +27,7 @@ export class LiveFeed {
     this.events = [];              // newest first
     this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
+    this.onScreen = new WeakSet();  // events the Live Activity has shown since they last changed
     this.seenTouchdowns = new Set();
     this.waiting = new Map();      // playerKey -> a gain whose play ESPN hasn't posted yet
     this.board = null;
@@ -134,6 +136,7 @@ export class LiveFeed {
     for (const l of leagues) if (!shown.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) shown.leagues.push(l);
     this.events.splice(this.events.indexOf(shown), 1);
     this.events.unshift(shown);
+    this.onScreen.delete(shown); // its points changed, so it's worth showing again
     return true;
   }
 
@@ -147,7 +150,15 @@ export class LiveFeed {
   next() {
     while (this.pendingTouchdowns.length) {
       const td = this.pendingTouchdowns.shift();
-      if (this.now() - Date.parse(td.at) < TOUCHDOWN_SHOWN_FOR) return this.current = eventContent(td, 'touchdown');
+      if (this.now() - Date.parse(td.at) < TOUCHDOWN_SHOWN_FOR) { this.onScreen.add(td); return this.current = eventContent(td, 'touchdown'); }
+    }
+    // Plays not shown yet go first, oldest first, so two plays between pushes (a catch, then a teammate's
+    // extra point) are both shown rather than only the newer one. Ones older than a few minutes are dropped.
+    const unseen = this.events.filter(e => !this.onScreen.has(e) && this.now() - Date.parse(e.at) < UNSEEN_PLAY_FOR).at(-1);
+    if (unseen) {
+      this.onScreen.add(unseen);
+      this.turn = 'score';
+      return this.current = eventContent(unseen, 'play');
     }
     const scores = this.scores(), play = this.latestPlay();
     if (play && (this.turn === 'play' || !scores.length)) {

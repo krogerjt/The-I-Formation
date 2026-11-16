@@ -76,7 +76,9 @@ export class NFLPlays {
 // Of the plays that gained this player something (newest first), the one whose points best fit the change.
 // A newer play wins a close call; a play whose points were all shown already is out; a change smaller than
 // a play's points can be its first piece, which fits less well than an exact match.
-const STAT_LAG = 3 * 60 * 1000;
+// Fantasy platforms can post a play's points several minutes after ESPN logs it (Sleeper took about 5 for a
+// Metcalf catch), so plays made up to 10 minutes before the previous poll still count as recent.
+const STAT_LAG = 10 * 60 * 1000;
 function bestFit(plays, name, { points, scoring, credited = new Map(), since = null } = {}) {
   if (!plays.length) return null;
   const recent = since ? plays.filter(p => p.at == null || p.at >= since - STAT_LAG) : plays;
@@ -192,22 +194,22 @@ export function statsFor(text, name) {
   const { main, extraPoint, twoPoint, nullified } = readPlay(text);
   if (nullified) return null;
   const td = /\bTOUCHDOWN\b/.test(main) ? 1 : 0;
-  let m = PASS_PLAY.exec(main);
-  if (m && me.test(m[2])) return { rec: 1, recYd: yardsIn(m[3]), recTd: td };
-  if (m && me.test(m[1])) return { passCmp: 1, passYd: yardsIn(m[3]), passTd: td };
-  m = FIELD_GOAL.exec(main);
-  if (m && me.test(m[1])) return { fg: Number(m[2]) };
-  m = RUN_PLAY.exec(main);
-  if (m && me.test(m[1])) return { rushYd: yardsIn(m[2]), rushTd: td };
-  if (extraPoint && me.test(extraPoint)) return { pat: 1 };
+  // The play itself, then the try after it; a player can be in both (a touchdown catch, then the two points).
+  let stats = null, m = PASS_PLAY.exec(main);
+  if (m && me.test(m[2])) stats = { rec: 1, recYd: yardsIn(m[3]), recTd: td };
+  else if (m && me.test(m[1])) stats = { passCmp: 1, passYd: yardsIn(m[3]), passTd: td };
+  else if ((m = FIELD_GOAL.exec(main)) && me.test(m[1])) stats = { fg: Number(m[2]) };
+  else if ((m = RUN_PLAY.exec(main)) && me.test(m[1])) stats = { rushYd: yardsIn(m[2]), rushTd: td };
+  else if (extraPoint && me.test(extraPoint)) stats = { pat: 1 };
   if (twoPoint) {
+    let two = null;
     m = new RegExp(`^${PLAYER} pass to ${PLAYER}`).exec(twoPoint);
-    if (m && me.test(m[2])) return { rec2pt: 1 };
-    if (m && me.test(m[1])) return { pass2pt: 1 };
-    m = new RegExp(`^${PLAYER} `).exec(twoPoint);
-    if (m && me.test(m[1])) return { rush2pt: 1 };
+    if (m && me.test(m[2])) two = { rec2pt: 1 };
+    else if (m && me.test(m[1])) two = { pass2pt: 1 };
+    else if ((m = new RegExp(`^${PLAYER} `).exec(twoPoint)) && me.test(m[1])) two = { rush2pt: 1 };
+    if (two) stats = { ...stats, ...two };
   }
-  return null;
+  return stats;
 }
 
 // The sentence for a play where this player gained something, or null when the play isn't one of those.
@@ -216,7 +218,9 @@ export function describeKnown(text, name) {
   const { main: clean, extraPoint, twoPoint, nullified } = readPlay(text);
   if (nullified) return null;
   const td = /\bTOUCHDOWN\b/.test(clean);
-  const tail = td ? ', touchdown' : '';
+  // "D. Metcalf caught pass for 22 yards, touchdown and two-point conversion" when he was in the try too.
+  const alsoTwo = Boolean(td && twoPoint && me?.test(twoPoint));
+  const tail = td ? `, touchdown${alsoTwo ? ' and two-point conversion' : ''}` : '';
   const num = s => /^no\b/.test(s) ? 0 : Number(s);
   const P = PLAYER;
 
@@ -226,7 +230,7 @@ export function describeKnown(text, name) {
     if (me.test(m[2])) return `${who} caught pass for ${yards(gain)}${tail}`;
     // ESPN writes the receiver as "B.Thomas"; show him the way the app writes names, "B. Thomas".
     const to = m[2].replace(/^([A-Z][a-z]?)\.\s?/, '$1. ');
-    if (me.test(m[1])) return td ? `${who} threw ${gain}-yard touchdown pass to ${to}` : `${who} completed pass to ${to} for ${yards(gain)}`;
+    if (me.test(m[1])) return td ? `${who} threw ${gain}-yard touchdown pass to ${to}${alsoTwo ? ' and two-point conversion' : ''}` : `${who} completed pass to ${to} for ${yards(gain)}`;
   }
   m = FIELD_GOAL.exec(clean);
   if (m && me?.test(m[1])) return `${who} made ${m[2]}-yard field goal`;
