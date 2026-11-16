@@ -16,6 +16,7 @@ import { round } from './model.js';
 
 const MAX_EVENTS = 60;
 const TOUCHDOWN_SHOWN_FOR = 10 * 60 * 1000; // a touchdown that hasn't been shown in 10 minutes is old news
+const PLAY_WAIT = 3 * 60 * 1000;            // how long a point change waits for ESPN to post its play
 
 export class LiveFeed {
   constructor({ aggregator, plays, players = aggregator.players, now = Date.now }) {
@@ -26,6 +27,7 @@ export class LiveFeed {
     this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
     this.seenTouchdowns = new Set();
+    this.waiting = new Map();      // playerKey -> a gain whose play ESPN hasn't posted yet
     this.board = null;
     this.polledAt = 0;
     this.turn = 'play';
@@ -47,7 +49,7 @@ export class LiveFeed {
     this.polledAt = this.now();
     const weekKey = `${board.season}:${board.week}`;
     const first = this.week !== weekKey;
-    if (first) { this.week = weekKey; this.baseline.clear(); this.events = []; this.pendingTouchdowns = []; this.seenTouchdowns.clear(); }
+    if (first) { this.week = weekKey; this.baseline.clear(); this.events = []; this.pendingTouchdowns = []; this.seenTouchdowns.clear(); this.waiting.clear(); }
 
     // Players whose points went up since the last poll, merged across leagues.
     const gains = new Map();
@@ -65,20 +67,40 @@ export class LiveFeed {
       }
     }
 
+    // Gains still waiting for their play join this poll's, keeping when they were first seen.
+    for (const [key, waiting] of this.waiting) {
+      const gain = gains.get(key);
+      if (!gain) { gains.set(key, waiting); continue; }
+      gain.points = round(gain.points + waiting.points);
+      for (const l of waiting.leagues) if (!gain.leagues.some(g => g.leagueName === l.leagueName && g.platform === l.platform)) gain.leagues.push(l);
+      Object.assign(gain, { since: waiting.since, firstSeen: waiting.firstSeen, matchupId: gain.matchupId ?? waiting.matchupId });
+    }
+    this.waiting.clear();
+
     const found = await Promise.all([...gains.values()].map(async gain => {
-      const fit = { points: gain.points, scoring: this.aggregator.scoringFor?.(gain.matchupId) ?? null, credited: this.credited(gain.player.key), since };
+      gain.since ??= since;
+      gain.firstSeen ??= this.now();
+      const fit = { points: gain.points, scoring: this.aggregator.scoringFor?.(gain.matchupId) ?? null, credited: this.credited(gain.player.key), since: gain.since };
       const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam, fit).catch(() => null) : null;
       return { gain, play };
     }));
     // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
     // later), so more points from the play already shown for this player go onto that event.
     for (let i = found.length - 1; i >= 0; i--) if (this.addToShown(found[i])) found.splice(i, 1);
+    // ESPN's play-by-play often posts a play after the fantasy points move. Rather than pin the points on an
+    // older play (which once re-announced a touchdown from an hour before), wait a few polls for it.
+    for (let i = found.length - 1; i >= 0; i--) {
+      const { gain, play } = found[i];
+      if (!play && gain.player.gameId && this.now() - gain.firstSeen < PLAY_WAIT) { this.waiting.set(gain.player.key, gain); found.splice(i, 1); }
+    }
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {
       const text = play ? describePlay(play.text, player.name) : `${player.position === 'DEF' ? player.name : shortName(player.name) || player.name} added ${points.toFixed(1)} points`;
       const tdKey = play?.touchdown ? `${play.id}|${player.key}` : null;
       // Only the passer, receiver or runner scored it, not the kicker of the extra point that shares its text.
-      const touchdown = Boolean(tdKey && !this.seenTouchdowns.has(tdKey) && scoredTouchdown(play.text, player.name));
+      // And only while it's news: never for a play that ESPN timed more than 10 minutes ago.
+      const fresh = !play?.at || this.now() - play.at < TOUCHDOWN_SHOWN_FOR;
+      const touchdown = Boolean(tdKey && fresh && !this.seenTouchdowns.has(tdKey) && scoredTouchdown(play.text, player.name));
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',

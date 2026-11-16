@@ -244,3 +244,44 @@ test('feed and Live Activity endpoints', async t => {
   assert.equal((await call('/v1/live/settings', 'PUT', { auto: 'yes' })).status, 400);
   assert.equal((await fetch(`http://127.0.0.1:${app.address().port}/v1/feed`)).status, 401);
 });
+
+test('points that arrive before ESPN posts the play wait for it, and an old touchdown is never announced', async () => {
+  const { feed, state, advance, now } = liveSetup();
+  const ago = min => new Date(now() - min * 60 * 1000).toISOString();
+  state.plays = [{ id: '10', text: 'P.Mahomes up the middle to KC 30 for 4 yards (M.Milano).', wallclock: ago(30) }];
+  await feed.poll();
+
+  // The touchdown's points land (4 for the TD, 2.96 for 74 yards), but ESPN's play-by-play doesn't have the play yet.
+  state.mahomes = 31.26;
+  advance(31000);
+  await feed.poll();
+  assert.deepEqual(feed.events, [], 'not pinned on the 4-yard run from half an hour ago');
+
+  // A poll later ESPN posts it.
+  state.plays.push({ id: '11', text: '(Shotgun) P.Mahomes pass deep left to X.Worthy for 74 yards, TOUCHDOWN.', type: { text: 'Passing Touchdown' }, wallclock: ago(1) });
+  advance(31000);
+  await feed.poll();
+  assert.equal(feed.events.length, 1);
+  assert.equal(feed.events[0].kind, 'touchdown');
+  assert.equal(feed.events[0].playId, '11');
+  assert.equal(feed.events[0].points, 6.96);
+
+  // A gain whose play never shows up is told as points after a few minutes, not tied to an old play.
+  state.mahomes = 31.66;
+  for (let i = 0; i < 7; i++) { advance(31000); await feed.poll(); }
+  assert.equal(feed.events[0].playId, null);
+  assert.match(feed.events[0].text, /added 0\.4 points/);
+});
+
+test('a touchdown ESPN timed long ago is a play, not a Touchdown! alert', async () => {
+  const { feed, state, advance, now } = liveSetup();
+  await feed.poll();
+  // Points from an hour-old touchdown that nothing had shown (say, a stat correction).
+  state.plays = [{ id: '20', text: '(Shotgun) P.Mahomes pass deep left to X.Worthy for 74 yards, TOUCHDOWN.', type: { text: 'Passing Touchdown' }, wallclock: new Date(now() - 60 * 60 * 1000).toISOString() }];
+  state.mahomes = 30.3;
+  advance(31000);
+  await feed.poll();
+  for (let i = 0; i < 7 && !feed.events.length; i++) { advance(31000); await feed.poll(); }
+  assert.ok(feed.events.every(e => e.kind === 'play'));
+  assert.equal(feed.pendingTouchdowns.length, 0);
+});
