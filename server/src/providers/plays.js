@@ -64,6 +64,9 @@ export class NFLPlays {
       gained.push(plays[i]);
     }
     const best = bestFit(gained, name, fit || {});
+    // Two plays' points posted together (a catch and the touchdown a drive later): the newer play, carrying
+    // the older one and each one's share of the points.
+    if (best?.length) return { ...named(best[1].play), points: best[1].points, earlier: { ...named(best[0].play), points: best[0].points } };
     if (best) return named(best);
     // Matching a point change made since the last poll: when ESPN hasn't posted a play since then (its
     // play-by-play often runs behind the fantasy points), an old play would be the wrong answer. Null says
@@ -82,16 +85,26 @@ const STAT_LAG = 10 * 60 * 1000;
 function bestFit(plays, name, { points, scoring, credited = new Map(), since = null } = {}) {
   if (!plays.length) return null;
   const recent = since ? plays.filter(p => p.at == null || p.at >= since - STAT_LAG) : plays;
-  let best = null, bestCost = Infinity;
+  let best = null, bestCost = Infinity, bestMiss = Infinity;
+  const open = [];
   recent.forEach((play, rank) => {
-    const left = (pointsFor(statsFor(play.text, name), scoring || undefined) ?? points) - (credited.get(play.id) ?? 0);
+    const left = round2((pointsFor(statsFor(play.text, name), scoring || undefined) ?? points) - (credited.get(play.id) ?? 0));
     if (credited.has(play.id) && left <= 0.05) return;
     const miss = Math.abs(left - points);
+    if (left > 0.05) open.push({ play, points: left });
     const cost = (points < left - 0.05 ? Math.min(miss, 0.5) : miss) + 0.1 * rank;
-    if (cost < bestCost) { best = play; bestCost = cost; }
+    if (cost < bestCost) { best = play; bestCost = cost; bestMiss = miss; }
   });
+  // No one play fits, but two together do exactly: both, oldest first, each with its own points.
+  if (bestMiss > 0.05) {
+    for (let i = 0; i < open.length; i++) for (let j = i + 1; j < open.length; j++) {
+      if (Math.abs(open[i].points + open[j].points - points) <= 0.05) return [open[j], open[i]];
+    }
+  }
   return best;
 }
+
+const round2 = n => Math.round(n * 100) / 100;
 
 function isTouchdown(play) {
   const type = `${play.type?.text || ''} ${play.type?.abbreviation || ''}`;

@@ -92,8 +92,10 @@ export class LiveFeed {
       gain.firstSeen ??= this.now();
       const fit = { points: gain.points, scoring: this.aggregator.scoringFor?.(gain.matchupId) ?? null, credited: this.credited(gain.player.key), since: gain.since };
       const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam, fit).catch(() => null) : null;
-      return { gain, play };
-    }));
+      // Two plays' points that posted together become two events, each with its own share.
+      if (play?.earlier) return [{ gain: { ...gain, points: play.earlier.points }, play: play.earlier }, { gain: { ...gain, points: play.points }, play }];
+      return [{ gain, play }];
+    })).then(list => list.flat());
     // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
     // later), so more points from the play already shown for this player go onto that event.
     for (let i = found.length - 1; i >= 0; i--) if (this.addToShown(found[i])) found.splice(i, 1);

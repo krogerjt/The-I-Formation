@@ -332,3 +332,17 @@ test('points that dip and come right back aren\'t counted twice, but a drop that
   assert.equal(feed.events[0].playId, '2');
   assert.equal(feed.events[0].points, 0.5);
 });
+
+test('two plays\' points posted together are split between the two plays', async () => {
+  const { feed, state, advance, now } = liveSetup();
+  const ago = min => new Date(now() - min * 60 * 1000).toISOString();
+  await feed.poll();
+  state.plays = [
+    { id: '1', text: '(Shotgun) P.Mahomes pass deep right to X.Worthy pushed ob at CIN 47 for 32 yards (B.Cook).', wallclock: ago(5) },
+    { id: '2', text: '(Shotgun) P.Mahomes pass deep left to X.Worthy for 22 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. P.Mahomes pass to X.Worthy is complete. ATTEMPT SUCCEEDS.', type: { text: 'Passing Touchdown' }, wallclock: ago(1) },
+  ];
+  state.mahomes = 32.46;                     // +8.16 = 1.28 for the 32 yards + 6.88 for the touchdown drive's pass
+  advance(31000);
+  await feed.poll();
+  assert.deepEqual(feed.events.map(e => [e.playId, e.kind, e.points]), [['2', 'touchdown', 6.88], ['1', 'play', 1.28]]);
+});
