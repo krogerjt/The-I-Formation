@@ -41,6 +41,26 @@ struct LiveSlide: Codable, Hashable {
     }
     var myScoreText: String { (myScore ?? 0).formatted(.number.precision(.fractionLength(1))) }
     var opponentScoreText: String { (opponentScore ?? 0).formatted(.number.precision(.fractionLength(1))) }
+
+    /// My share of the two scores, 0...1: 100 to 100 is 0.5. Even when neither side has points.
+    var myShare: Double {
+        let mine = max(myScore ?? 0, 0), theirs = max(opponentScore ?? 0, 0)
+        return mine + theirs > 0 ? mine / (mine + theirs) : 0.5
+    }
+
+    /// The league in two or three letters, for the compact Dynamic Island: "Dynasty Bros" is "DB",
+    /// "Family League" is "FL", a one-word name keeps its first three letters ("Champions" is "CHA").
+    var leagueShort: String? { leagueName.flatMap(Self.abbreviation) }
+
+    static func abbreviation(_ name: String) -> String? {
+        let words = name
+            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "'’")).inverted)
+            .map { $0.filter { $0.isLetter || $0.isNumber } }
+            .filter { !$0.isEmpty }
+        guard let first = words.first else { return nil }
+        let short = words.count == 1 ? String(first.prefix(3)) : String(words.prefix(3).compactMap(\.first))
+        return short.uppercased()
+    }
 }
 
 /// What the server reports about the Live Activity.

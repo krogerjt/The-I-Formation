@@ -112,6 +112,77 @@ private struct ScoreSlide: View {
 
 // MARK: - Dynamic Island
 
+/// The expanded Dynamic Island's score slide: both scores over a bar split by score share, my side green from the
+/// left and the opponent's red from the right, with the league's name in the middle of the bar.
+/// The lock screen and the Feed tab keep ScoreSlide.
+struct IslandScoreSlide: View {
+    let slide: LiveSlide
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(slide.myTeam ?? "Me").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(slide.myScoreText)
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(slide.leading == "me" ? .green : .white)
+                        .contentTransition(.numericText())
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(slide.opponentTeam ?? "Opponent").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(slide.opponentScoreText)
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(slide.leading == "opponent" ? .red : .white)
+                        .contentTransition(.numericText())
+                }
+            }
+            ScoreShareBar(share: slide.myShare, label: slide.leagueName ?? slide.platform?.label)
+        }
+    }
+}
+
+/// A bar split at my share of the points, with an optional label centered on it.
+struct ScoreShareBar: View {
+    let share: Double
+    var label: String?
+    var height: CGFloat = 20
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                Rectangle().fill(.green).frame(width: geo.size.width * share)
+                Rectangle().fill(.red)
+            }
+        }
+        .frame(height: height)
+        .clipShape(Capsule())
+        .overlay {
+            if let label {
+                Text(label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 10)
+            }
+        }
+    }
+}
+
+/// A ring split by score share, green clockwise from the top for me and red for the opponent.
+struct ScoreShareRing: View {
+    let share: Double
+    var lineWidth: CGFloat = 2.5
+    var body: some View {
+        ZStack {
+            Circle().stroke(.red, lineWidth: lineWidth)
+            Circle().trim(from: 0, to: share).stroke(.green, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+        }
+    }
+}
+
 /// Left of the camera: the team logo for a play, my score, or a football for a touchdown.
 struct IslandLeading: View {
     let slide: LiveSlide
@@ -120,9 +191,19 @@ struct IslandLeading: View {
         case .play: TeamLogo(team: slide.nflTeam, size: 22)
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
-            Text(slide.myScoreText)
-                .font(.caption.weight(.bold).monospacedDigit())
-                .foregroundStyle(slide.leading == "me" ? .green : .white)
+            HStack(spacing: 4) {
+                if let short = slide.leagueShort {
+                    Text(short)
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(slide.platform?.tint ?? .gray, in: RoundedRectangle(cornerRadius: 4))
+                }
+                Text(slide.myScoreText)
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(slide.leading == "me" ? .green : .white)
+            }
         }
     }
 }
@@ -150,10 +231,15 @@ struct IslandMinimal: View {
         case .play: Text(slide.pointsText).font(.caption2.weight(.bold)).foregroundStyle(.green).minimumScaleFactor(0.6)
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
-            Text((slide.myScore ?? 0).formatted(.number.precision(.fractionLength(0))))
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(slide.leading == "me" ? .green : slide.leading == "opponent" ? .red : .white)
-                .minimumScaleFactor(0.6)
+            // Which league, inside a ring showing who's ahead and by how much.
+            ZStack {
+                ScoreShareRing(share: slide.myShare)
+                Text(slide.leagueShort ?? (slide.myScore ?? 0).formatted(.number.precision(.fractionLength(0))))
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.5)
+                    .padding(3)
+            }
         }
     }
 }

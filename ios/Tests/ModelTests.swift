@@ -80,4 +80,20 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(slide.myScoreText, "100.3")
         XCTAssertEqual(slide.opponentScoreText, "90.4")
     }
+
+    func testScoreShareAndLeagueAbbreviation() {
+        var slide = LiveSlide(kind: .score, leagueName: "Dynasty Bros", myScore: 100, opponentScore: 100)
+        XCTAssertEqual(slide.myShare, 0.5)
+        slide.myScore = 150; slide.opponentScore = 50
+        XCTAssertEqual(slide.myShare, 0.75)
+        slide.myScore = 0; slide.opponentScore = 0
+        XCTAssertEqual(slide.myShare, 0.5)
+        slide.myScore = -2; slide.opponentScore = 10
+        XCTAssertEqual(slide.myShare, 0)
+        XCTAssertEqual(slide.leagueShort, "DB")
+        XCTAssertEqual(LiveSlide.abbreviation("Champions"), "CHA")
+        XCTAssertEqual(LiveSlide.abbreviation("Fat Pat's Donut Shop"), "FPD")
+        XCTAssertEqual(LiveSlide.abbreviation("The 2026 League"), "T2L")
+        XCTAssertNil(LiveSlide.abbreviation("  "))
+    }
 }
