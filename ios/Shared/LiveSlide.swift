@@ -44,6 +44,13 @@ struct LiveSlide: Codable, Hashable {
     var myScoreText: String { (myScore ?? 0).formatted(.number.precision(.fractionLength(1))) }
     var opponentScoreText: String { (opponentScore ?? 0).formatted(.number.precision(.fractionLength(1))) }
 
+    /// My lead, "+17.0", or deficit, "-18.0" ("0.0" when tied).
+    var marginText: String {
+        let margin = (myScore ?? 0) - (opponentScore ?? 0)
+        let text = abs(margin).formatted(.number.precision(.fractionLength(1)))
+        return margin > 0.05 ? "+" + text : margin < -0.05 ? "-" + text : text
+    }
+
     /// My share of the two scores, 0...1: 100 to 100 is 0.5. Even when neither side has points.
     var myShare: Double {
         let mine = max(myScore ?? 0, 0), theirs = max(opponentScore ?? 0, 0)
