@@ -183,12 +183,13 @@ struct ScoreShareRing: View {
     }
 }
 
-/// Left of the camera: the team logo for a play, my score, or a football for a touchdown.
+/// Left of the camera: the player's headshot (or team logo) for a play, my score, or a football for a touchdown.
 struct IslandLeading: View {
     let slide: LiveSlide
     var body: some View {
         switch slide.kind {
-        case .play: TeamLogo(team: slide.nflTeam, size: 22)
+        // The scorer's face, with a bigger badge than on the slide so the logo still reads at this size.
+        case .play: PlayerAvatar(headshot: slide.headshot, team: slide.nflTeam, size: 24, badgeScale: 0.5)
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
             HStack(spacing: 4) {
@@ -253,6 +254,8 @@ struct PlayerAvatar: View {
     let headshot: String?
     let team: String?
     let size: CGFloat
+    /// The logo badge's size, as a share of the avatar's.
+    var badgeScale: CGFloat = 0.38
 
     var body: some View {
         if let headshot, let image = PlayerHeadshots.image(for: headshot) {
@@ -264,13 +267,13 @@ struct PlayerAvatar: View {
                     .background(TeamLogos.color(for: team).opacity(0.9))
                     .clipShape(Circle())
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
-                TeamLogo(team: team, size: size * 0.38)
+                TeamLogo(team: team, size: size * badgeScale)
                     .padding(size * 0.035)
                     .background(Circle().fill(Color(white: 0.12)))
-                    .offset(x: size * 0.1, y: size * 0.04)
+                    .offset(x: size * badgeScale * 0.27, y: size * 0.04)
             }
             .frame(width: size, height: size)
-            .padding(.trailing, size * 0.1)
+            .padding(.trailing, size * badgeScale * 0.27)
         } else {
             TeamLogo(team: team, size: size)
         }
