@@ -85,3 +85,20 @@ test('the store is encrypted at rest and reads back', () => {
   assert.throws(() => new Store({ path, key: 'wrong-key' }));
   assert.throws(() => new Store({ path }), /STATE_KEY/);
 });
+
+test('headshots: the list and each picture, behind the app token', async t => {
+  const { aggregator } = setup();
+  const images = new Map([['4046', { data: Buffer.from('jpg'), type: 'image/jpeg' }]]);
+  const headshots = {
+    refresh: async () => {},
+    list: () => ({ updatedAt: null, players: [{ id: '4046', name: 'Patrick Mahomes', nflTeam: 'KC', version: '1' }] }),
+    image: id => images.get(id) || null,
+  };
+  const { call } = await serve(t, { aggregator, headshots });
+  assert.equal((await call('/v1/headshots', { token: null })).status, 401);
+  assert.equal((await (await call('/v1/headshots')).json()).players[0].id, '4046');
+  const res = await call('/v1/headshots/4046');
+  assert.equal(res.headers.get('content-type'), 'image/jpeg');
+  assert.equal(Buffer.from(await res.arrayBuffer()).toString(), 'jpg');
+  assert.equal((await call('/v1/headshots/9999')).status, 404);
+});

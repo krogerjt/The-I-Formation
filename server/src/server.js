@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Aggregator } from './aggregate.js';
 import { PlayerIndex } from './players.js';
@@ -12,6 +13,7 @@ import { NFLPlays } from './providers/plays.js';
 import { LiveFeed } from './live.js';
 import { LiveActivityDriver } from './live-activity.js';
 import { APNs } from './apns.js';
+import { Headshots } from './headshots.js';
 
 const APP_SCHEME = 'huddle';
 const SLEEPER_USERNAME = /^[A-Za-z0-9_.-]{1,40}$/;
@@ -61,7 +63,7 @@ export function validESPNLeagues(leagues) {
   });
 }
 
-export function createApp({ aggregator, store, yahoo, feed, live, appToken = process.env.APP_TOKEN, now = Date.now }) {
+export function createApp({ aggregator, store, yahoo, feed, live, headshots, appToken = process.env.APP_TOKEN, now = Date.now }) {
   const pendingYahoo = new Map(); // OAuth state -> expiry
   return createServer(async (req, res) => {
     const send = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
@@ -125,6 +127,17 @@ export function createApp({ aggregator, store, yahoo, feed, live, appToken = pro
         if (Boolean(activityId) !== Boolean(activityToken)) throw new HTTPError(400, 'Send activityId and activityToken together.');
         return send(200, live.saveTokens({ pushToStart, activityId, activityToken, ended }));
       }
+      if (route === 'GET /v1/headshots' && headshots) {
+        // The daily pass, or a quick one for waiver adds if the last was over an hour ago.
+        await headshots.refresh({ minAge: 60 * 60 * 1000 }).catch(error => console.error('Headshot refresh failed:', error.message));
+        return send(200, headshots.list());
+      }
+      if (req.method === 'GET' && headshots && url.pathname.startsWith('/v1/headshots/')) {
+        const image = headshots.image(url.pathname.slice('/v1/headshots/'.length));
+        if (!image) return send(404, { error: 'No headshot for that player.' });
+        res.writeHead(200, { 'content-type': image.type, 'content-length': image.data.length, 'cache-control': 'private, max-age=86400' });
+        return res.end(image.data);
+      }
       if (route === 'DELETE /v1/yahoo') { store.saveYahooTokens(null); return send(200, store.publicAccounts()); }
       return send(404, { error: 'Not found.' });
     } catch (error) {
@@ -141,10 +154,12 @@ export function createDefaultApp(env = process.env) {
   const store = new Store({ path: env.DATA_PATH || 'data/state.bin', key: env.STATE_KEY });
   const yahoo = new YahooProvider({ clientId: env.YAHOO_CLIENT_ID, clientSecret: env.YAHOO_CLIENT_SECRET, redirectUri: env.YAHOO_REDIRECT_URI });
   const aggregator = new Aggregator({ sleeper: new SleeperProvider({ players }), espn: new ESPNProvider(), yahoo, nfl: new NFLGames(), players, store });
-  const feed = new LiveFeed({ aggregator, plays: new NFLPlays() });
+  const headshots = new Headshots({ dir: join(dirname(env.DATA_PATH || 'data/state.bin'), 'headshots'), aggregator, players });
+  const feed = new LiveFeed({ aggregator, plays: new NFLPlays(), players });
   const live = new LiveActivityDriver({ feed, apns: APNs.fromEnv(env), store });
-  const app = createApp({ aggregator, store, yahoo, feed, live, appToken: env.APP_TOKEN });
+  const app = createApp({ aggregator, store, yahoo, feed, live, headshots, appToken: env.APP_TOKEN });
   app.live = live;
+  app.headshots = headshots;
   return app;
 }
 
@@ -153,4 +168,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const app = createDefaultApp();
   app.listen(port, host, () => console.log(`Huddle server on http://${host}:${port}${app.live.pushConfigured ? ', Live Activity push on' : ''}`));
   app.live.run();
+  app.headshots.run();
 }

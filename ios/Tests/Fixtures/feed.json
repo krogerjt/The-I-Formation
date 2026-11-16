@@ -45,6 +45,7 @@
       "kind": "touchdown",
       "player": "Patrick Mahomes",
       "nflTeam": "KC",
+      "headshot": "4046",
       "text": "P. Mahomes threw 25-yard touchdown pass to T. Kelce",
       "points": 4,
       "leagues": [
@@ -60,6 +61,7 @@
     "kind": "touchdown",
     "nflTeam": "KC",
     "player": "Patrick Mahomes",
+    "headshot": "4046",
     "text": "P. Mahomes threw 25-yard touchdown pass to T. Kelce",
     "points": 4,
     "platform": "sleeper",

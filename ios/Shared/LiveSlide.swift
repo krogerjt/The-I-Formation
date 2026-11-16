@@ -18,6 +18,8 @@ struct LiveSlide: Codable, Hashable {
     // Plays and touchdowns
     var nflTeam: String?
     var player: String?
+    /// The id of the player's headshot, which the app has already saved for the Live Activity (PlayerHeadshots).
+    var headshot: String? = nil
     var text: String?
     var points: Double?
     /// How many of my leagues the play counted in.
@@ -65,6 +67,7 @@ struct FeedEvent: Codable, Hashable, Identifiable {
     let kind: LiveSlide.Kind
     let player: String
     let nflTeam: String?
+    var headshot: String? = nil
     let text: String
     let points: Double
     let leagues: [League]
@@ -78,7 +81,7 @@ struct FeedEvent: Codable, Hashable, Identifiable {
         let leagueName = kind == .touchdown
             ? (names.count <= 2 ? names.joined(separator: " & ") : "\(names[0]) + \(names.count - 1) more")
             : names.first
-        return LiveSlide(kind: kind, nflTeam: nflTeam, player: player, text: text, points: points, leagues: leagues.count,
+        return LiveSlide(kind: kind, nflTeam: nflTeam, player: player, headshot: headshot, text: text, points: points, leagues: leagues.count,
                          platform: leagues.first?.platform, leagueName: leagueName)
     }
 }

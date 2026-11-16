@@ -100,6 +100,22 @@ struct HuddleAPI {
         try await request("PUT", "v1/live/tokens", body: tokens)
     }
 
+    // MARK: - Player headshots
+
+    /// Every headshot the server keeps: the players on my rosters, bench included.
+    func headshots() async throws -> HeadshotList { try await get("v1/headshots") }
+
+    /// One player's picture, as the server saved it from Sleeper or ESPN.
+    func headshot(_ id: String) async throws -> Data {
+        var req = URLRequest(url: baseURL.appendingPathComponent("v1/headshots/\(id)"))
+        req.timeoutInterval = 30
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else { throw APIError(message: "The server returned \(status).", status: status) }
+        return data
+    }
+
     // MARK: - Plumbing
 
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {

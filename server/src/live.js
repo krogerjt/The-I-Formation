@@ -9,16 +9,17 @@ import { round } from './model.js';
 // the next league each time:  play, league 1, play, league 2, play, league 3, ...
 //
 // Content sent to the phone (the Live Activity's ContentState, so it must stay well under 4 KB):
-//   { kind: 'play', nflTeam, player, text, points, leagueName, platform, leagues }
-//   { kind: 'touchdown', nflTeam, player, text, points, leagueName, platform, leagues }
+//   { kind: 'play', nflTeam, player, headshot, text, points, leagueName, platform, leagues }
+//   { kind: 'touchdown', nflTeam, player, headshot, text, points, leagueName, platform, leagues }
+// `headshot` is the id of a picture the app has already copied onto the phone (see headshots.js), or null.
 //   { kind: 'score', platform, leagueName, myTeam, myScore, opponentTeam, opponentScore, leading, winChance }
 
 const MAX_EVENTS = 60;
 const TOUCHDOWN_SHOWN_FOR = 10 * 60 * 1000; // a touchdown that hasn't been shown in 10 minutes is old news
 
 export class LiveFeed {
-  constructor({ aggregator, plays, now = Date.now }) {
-    Object.assign(this, { aggregator, plays, now });
+  constructor({ aggregator, plays, players = aggregator.players, now = Date.now }) {
+    Object.assign(this, { aggregator, plays, players, now });
     this.week = null;
     this.baseline = new Map();     // `${matchupId}|${playerKey}` -> points at the last poll
     this.events = [];              // newest first
@@ -81,7 +82,7 @@ export class LiveFeed {
       if (tdKey) this.seenTouchdowns.add(tdKey);
       const event = {
         id: `${this.now()}:${player.key}`, at, kind: touchdown ? 'touchdown' : 'play',
-        player: player.name, nflTeam: player.nflTeam,
+        player: player.name, nflTeam: player.nflTeam, headshot: this.players?.headshotId(player) ?? null,
         // "Tra. Etienne" when another player in the game is also "T. Etienne".
         text: play?.shortName ? text.replace(shortName(player.name), play.shortName) : text,
         points, leagues, playId: play?.id ?? null,
@@ -158,7 +159,7 @@ export class LiveFeed {
 export function eventContent(event, kind = event.kind) {
   const first = event.leagues[0] || {};
   return {
-    kind, nflTeam: event.nflTeam, player: event.player, text: event.text, points: event.points,
+    kind, nflTeam: event.nflTeam, player: event.player, headshot: event.headshot ?? null, text: event.text, points: event.points,
     platform: first.platform ?? null,
     leagueName: kind === 'touchdown' ? leagueList(event.leagues) : first.leagueName ?? null,
     leagues: event.leagues.length,
