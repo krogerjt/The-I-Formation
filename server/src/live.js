@@ -16,16 +16,18 @@ import { round } from './model.js';
 
 const MAX_EVENTS = 60;
 const TOUCHDOWN_SHOWN_FOR = 10 * 60 * 1000; // a touchdown that hasn't been shown in 10 minutes is old news
+const UNSEEN_PLAY_FOR = 5 * 60 * 1000;      // a play the Live Activity hasn't shown yet still goes ahead of scores this long
 const PLAY_WAIT = 3 * 60 * 1000;            // how long a point change waits for ESPN to post its play
 
 export class LiveFeed {
   constructor({ aggregator, plays, players = aggregator.players, now = Date.now }) {
     Object.assign(this, { aggregator, plays, players, now });
     this.week = null;
-    this.baseline = new Map();     // `${matchupId}|${playerKey}` -> points at the last poll
+    this.baseline = new Map();     // `${matchupId}|${playerKey}` -> { points } counted so far, and a drop not yet trusted
     this.events = [];              // newest first
     this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
+    this.onScreen = new WeakSet();  // events the Live Activity has shown since they last changed
     this.seenTouchdowns = new Set();
     this.waiting = new Map();      // playerKey -> a gain whose play ESPN hasn't posted yet
     this.board = null;
@@ -56,8 +58,16 @@ export class LiveFeed {
     for (const m of board.matchups) {
       for (const p of m.me?.players || []) {
         if (!p.starter || p.points == null) continue;
-        const key = `${m.id}|${p.key}`, before = this.baseline.get(key);
-        this.baseline.set(key, p.points);
+        const key = `${m.id}|${p.key}`, last = this.baseline.get(key), before = last?.points;
+        // A drop is a real correction (a lost fumble, a stat taken back) or a blip in the platform's data that
+        // comes right back (Sleeper once read 4.2 -> lower -> 4.2, and the rebound counted as a second 4.2).
+        // Only a drop that holds for two polls lowers the baseline, so a blip's rebound isn't new points.
+        if (before != null && p.points < before) {
+          const polls = last.drop?.points === p.points ? last.drop.polls + 1 : 1;
+          this.baseline.set(key, polls >= 2 ? { points: p.points } : { points: before, drop: { points: p.points, polls } });
+          continue;
+        }
+        this.baseline.set(key, { points: p.points });
         if (first || before == null || p.points <= before) continue;
         let gain = gains.get(p.key);
         if (!gain) gains.set(p.key, gain = { player: p, points: 0, leagues: [] });
@@ -82,8 +92,10 @@ export class LiveFeed {
       gain.firstSeen ??= this.now();
       const fit = { points: gain.points, scoring: this.aggregator.scoringFor?.(gain.matchupId) ?? null, credited: this.credited(gain.player.key), since: gain.since };
       const play = gain.player.gameId ? await this.plays.latestFor(gain.player.gameId, gain.player.name, gain.player.nflTeam, fit).catch(() => null) : null;
-      return { gain, play };
-    }));
+      // Two plays' points that posted together become two events, each with its own share.
+      if (play?.earlier) return [{ gain: { ...gain, points: play.earlier.points }, play: play.earlier }, { gain: { ...gain, points: play.points }, play }];
+      return [{ gain, play }];
+    })).then(list => list.flat());
     // Platforms often post a play's points in pieces (the catch first, the yards and touchdown a poll or two
     // later), so more points from the play already shown for this player go onto that event.
     for (let i = found.length - 1; i >= 0; i--) if (this.addToShown(found[i])) found.splice(i, 1);
@@ -134,6 +146,7 @@ export class LiveFeed {
     for (const l of leagues) if (!shown.leagues.some(e => e.leagueName === l.leagueName && e.platform === l.platform)) shown.leagues.push(l);
     this.events.splice(this.events.indexOf(shown), 1);
     this.events.unshift(shown);
+    this.onScreen.delete(shown); // its points changed, so it's worth showing again
     return true;
   }
 
@@ -147,7 +160,15 @@ export class LiveFeed {
   next() {
     while (this.pendingTouchdowns.length) {
       const td = this.pendingTouchdowns.shift();
-      if (this.now() - Date.parse(td.at) < TOUCHDOWN_SHOWN_FOR) return this.current = eventContent(td, 'touchdown');
+      if (this.now() - Date.parse(td.at) < TOUCHDOWN_SHOWN_FOR) { this.onScreen.add(td); return this.current = eventContent(td, 'touchdown'); }
+    }
+    // Plays not shown yet go first, oldest first, so two plays between pushes (a catch, then a teammate's
+    // extra point) are both shown rather than only the newer one. Ones older than a few minutes are dropped.
+    const unseen = this.events.filter(e => !this.onScreen.has(e) && this.now() - Date.parse(e.at) < UNSEEN_PLAY_FOR).at(-1);
+    if (unseen) {
+      this.onScreen.add(unseen);
+      this.turn = 'score';
+      return this.current = eventContent(unseen, 'play');
     }
     const scores = this.scores(), play = this.latestPlay();
     if (play && (this.turn === 'play' || !scores.length)) {

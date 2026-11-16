@@ -126,3 +126,9 @@ test('two players ESPN writes the same way are told apart by the team with the b
   assert.equal((await plays.latestFor('401873055', 'Travis Etienne Jr.', 'NO')).shortName, 'Tra. Etienne');
   assert.equal(distinctShortName('Josh Allen', ['Josh Allen', 'Garrett Wilson']), 'J. Allen');
 });
+
+test('a touchdown catch followed by the two-point catch counts both', () => {
+  const text = '(Shotgun) A.Rodgers pass deep left to D.Metcalf for 22 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. A.Rodgers pass to D.Metcalf is complete. ATTEMPT SUCCEEDS.';
+  assert.equal(describePlay(text, 'DK Metcalf'), 'D. Metcalf caught pass for 22 yards, touchdown and two-point conversion');
+  assert.equal(scoredTouchdown(text, 'DK Metcalf'), true);
+});

@@ -285,3 +285,64 @@ test('a touchdown ESPN timed long ago is a play, not a Touchdown! alert', async 
   assert.ok(feed.events.every(e => e.kind === 'play'));
   assert.equal(feed.pendingTouchdowns.length, 0);
 });
+
+test('points posted minutes after the play still find it, and every new play reaches the Live Activity', async () => {
+  // Sunday night PIT at CIN: Sleeper posted a 32-yard catch's points about 5 minutes after ESPN logged it,
+  // just as the next drive's touchdown (and two-point try) showed up in ESPN's play-by-play.
+  const { feed, state, advance, now } = liveSetup();
+  const ago = min => new Date(now() - min * 60 * 1000).toISOString();
+  await feed.poll();
+  state.plays = [
+    { id: '1', text: '(Shotgun) P.Mahomes pass deep right to X.Worthy pushed ob at CIN 47 for 32 yards (B.Cook).', wallclock: ago(5) },
+    { id: '2', text: '(Shotgun) P.Mahomes pass deep left to X.Worthy for 22 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. P.Mahomes pass to X.Worthy is complete. ATTEMPT SUCCEEDS.', type: { text: 'Passing Touchdown' }, wallclock: ago(1) },
+  ];
+  state.mahomes = 25.58;                     // +1.28: the 32 yards passing
+  advance(31000);
+  await feed.poll();
+  assert.equal(feed.events[0].playId, '1', 'the catch, not the newer touchdown');
+  assert.equal(feed.events[0].kind, 'play');
+
+  state.mahomes = 32.46;                     // +6.88: 22 yards, the touchdown and the two-point try
+  advance(31000);
+  await feed.poll();
+  assert.equal(feed.events[0].playId, '2');
+  assert.equal(feed.events[0].kind, 'touchdown');
+  assert.equal(feed.events[0].text, 'P. Mahomes threw 22-yard touchdown pass to X. Worthy and two-point conversion');
+
+  // The touchdown jumps the queue, then the catch it would otherwise have buried, then scores.
+  const slides = Array.from({ length: 4 }, () => feed.next());
+  assert.deepEqual(slides.map(s => s.kind), ['touchdown', 'play', 'score', 'play']);
+  assert.match(slides[1].text, /32 yards/);
+});
+
+test('points that dip and come right back aren\'t counted twice, but a drop that holds is', async () => {
+  const { feed, state, advance } = liveSetup();
+  state.plays = [{ id: '1', text: 'P.Mahomes scrambles right end to BUF 30 for 8 yards (M.Milano).' }];
+  await feed.poll();
+  const poll = async points => { state.mahomes = points; advance(31000); await feed.poll(); };
+  await poll(25.1);                          // +0.8, the scramble
+  await poll(24.3);                          // a blip
+  await poll(25.1);                          // back
+  assert.equal(feed.events.length, 1);
+  assert.equal(feed.events[0].points, 0.8);
+
+  await poll(23.1); await poll(23.1);        // a correction that holds: -2
+  state.plays.push({ id: '2', text: 'P.Mahomes up the middle to BUF 20 for 5 yards (M.Milano).' });
+  await poll(23.6);                          // +0.5 from there
+  assert.equal(feed.events[0].playId, '2');
+  assert.equal(feed.events[0].points, 0.5);
+});
+
+test('two plays\' points posted together are split between the two plays', async () => {
+  const { feed, state, advance, now } = liveSetup();
+  const ago = min => new Date(now() - min * 60 * 1000).toISOString();
+  await feed.poll();
+  state.plays = [
+    { id: '1', text: '(Shotgun) P.Mahomes pass deep right to X.Worthy pushed ob at CIN 47 for 32 yards (B.Cook).', wallclock: ago(5) },
+    { id: '2', text: '(Shotgun) P.Mahomes pass deep left to X.Worthy for 22 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. P.Mahomes pass to X.Worthy is complete. ATTEMPT SUCCEEDS.', type: { text: 'Passing Touchdown' }, wallclock: ago(1) },
+  ];
+  state.mahomes = 32.46;                     // +8.16 = 1.28 for the 32 yards + 6.88 for the touchdown drive's pass
+  advance(31000);
+  await feed.poll();
+  assert.deepEqual(feed.events.map(e => [e.playId, e.kind, e.points]), [['2', 'touchdown', 6.88], ['1', 'play', 1.28]]);
+});
