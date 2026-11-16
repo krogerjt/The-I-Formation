@@ -191,24 +191,37 @@ struct IslandLeading: View {
         case .play: TeamLogo(team: slide.nflTeam, size: 22)
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
-            HStack(spacing: 4) {
-                if let short = slide.leagueShort {
-                    Text(short)
-                        .font(.caption2.weight(.heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(slide.platform?.tint ?? .gray, in: RoundedRectangle(cornerRadius: 4))
+            // The share bar, with the league's name on a gray pill in the middle (its initials if the name won't fit).
+            ScoreShareBar(share: slide.myShare, height: 14)
+                .frame(width: 90)
+                .overlay {
+                    ViewThatFits(in: .horizontal) {
+                        if let name = slide.leagueName { LeaguePill(text: name) }
+                        if let short = slide.leagueShort { LeaguePill(text: short) }
+                    }
+                    // Room left so some of the bar shows on each side of the name.
+                    .padding(.horizontal, 12)
                 }
-                Text(slide.myScoreText)
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(slide.leading == "me" ? .green : .white)
-            }
         }
     }
 }
 
-/// Right of the camera: "+3.0", the opponent's score, or "Touchdown!".
+/// White league name on a gray pill, laid over the compact island's share bar.
+private struct LeaguePill: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Color(white: 0.25), in: Capsule())
+    }
+}
+
+/// Right of the camera: "+3.0", how far ahead or behind I am, or "Touchdown!".
 struct IslandTrailing: View {
     let slide: LiveSlide
     var body: some View {
@@ -216,9 +229,10 @@ struct IslandTrailing: View {
         case .play: Text(slide.pointsText).font(.caption.weight(.bold).monospacedDigit()).foregroundStyle(.green)
         case .touchdown: Text("Touchdown!").font(.caption.weight(.heavy)).foregroundStyle(.yellow)
         case .score:
-            Text(slide.opponentScoreText)
+            // How far ahead or behind I am: green "+17.0", red "-18.0".
+            Text(slide.marginText)
                 .font(.caption.weight(.bold).monospacedDigit())
-                .foregroundStyle(slide.leading == "opponent" ? .red : .white)
+                .foregroundStyle(slide.leading == "me" ? .green : slide.leading == "opponent" ? .red : .white)
         }
     }
 }

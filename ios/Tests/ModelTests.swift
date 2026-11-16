@@ -104,5 +104,11 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(LiveSlide.abbreviation("Fat Pat's Donut Shop"), "FPD")
         XCTAssertEqual(LiveSlide.abbreviation("The 2026 League"), "T2L")
         XCTAssertNil(LiveSlide.abbreviation("  "))
+        slide.myScore = 81.4; slide.opponentScore = 99.4
+        XCTAssertEqual(slide.marginText, "-18.0")
+        slide.myScore = 99.4; slide.opponentScore = 81.4
+        XCTAssertEqual(slide.marginText, "+18.0")
+        slide.opponentScore = 99.4
+        XCTAssertEqual(slide.marginText, "0.0")
     }
 }
