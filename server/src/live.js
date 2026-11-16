@@ -92,6 +92,9 @@ export class LiveFeed {
     for (let i = found.length - 1; i >= 0; i--) {
       const { gain, play } = found[i];
       if (!play && gain.player.gameId && this.now() - gain.firstSeen < PLAY_WAIT) { this.waiting.set(gain.player.key, gain); found.splice(i, 1); }
+      // A player's points that no play explains (a stat correction, most often) aren't news, so they're
+      // left out. A team defense has no play to match and is told by its points.
+      else if (!play && gain.player.position !== 'DEF') found.splice(i, 1);
     }
     const at = new Date(this.now()).toISOString();
     for (const { gain: { player, points, leagues }, play } of found) {

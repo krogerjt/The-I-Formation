@@ -266,11 +266,11 @@ test('points that arrive before ESPN posts the play wait for it, and an old touc
   assert.equal(feed.events[0].playId, '11');
   assert.equal(feed.events[0].points, 6.96);
 
-  // A gain whose play never shows up is told as points after a few minutes, not tied to an old play.
+  // A gain whose play never shows up (a stat correction) is left out after a few minutes, not tied to an old play.
   state.mahomes = 31.66;
   for (let i = 0; i < 7; i++) { advance(31000); await feed.poll(); }
-  assert.equal(feed.events[0].playId, null);
-  assert.match(feed.events[0].text, /added 0\.4 points/);
+  assert.equal(feed.events.length, 1, 'only the touchdown');
+  assert.equal(feed.waiting.size, 0, 'and it stopped waiting');
 });
 
 test('a touchdown ESPN timed long ago is a play, not a Touchdown! alert', async () => {
