@@ -40,7 +40,7 @@ private struct PlaySlide: View {
     let slide: LiveSlide
     var body: some View {
         HStack(spacing: 12) {
-            TeamLogo(team: slide.nflTeam, size: 44)
+            PlayerAvatar(headshot: slide.headshot, team: slide.nflTeam, size: 48)
             VStack(alignment: .leading, spacing: 3) {
                 LeagueLine(slide: slide)
                 Text(slide.text ?? "")
@@ -61,7 +61,7 @@ private struct TouchdownSlide: View {
     let slide: LiveSlide
     var body: some View {
         HStack(spacing: 12) {
-            TeamLogo(team: slide.nflTeam, size: 44)
+            PlayerAvatar(headshot: slide.headshot, team: slide.nflTeam, size: 48)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Touchdown!")
                     .font(.title3.weight(.heavy))
@@ -240,6 +240,76 @@ struct IslandMinimal: View {
                     .minimumScaleFactor(0.5)
                     .padding(3)
             }
+        }
+    }
+}
+
+// MARK: - Player headshots
+
+/// A player's face in a circle on his team's color, with the team logo as a badge in the corner, the way
+/// sports apps show a scorer. Without a saved headshot (a team defense, or a player with no picture) it's
+/// the team logo alone, as before.
+struct PlayerAvatar: View {
+    let headshot: String?
+    let team: String?
+    let size: CGFloat
+
+    var body: some View {
+        if let headshot, let image = PlayerHeadshots.image(for: headshot) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .background(TeamLogos.color(for: team).opacity(0.9))
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                TeamLogo(team: team, size: size * 0.38)
+                    .padding(size * 0.035)
+                    .background(Circle().fill(Color(white: 0.12)))
+                    .offset(x: size * 0.1, y: size * 0.04)
+            }
+            .frame(width: size, height: size)
+            .padding(.trailing, size * 0.1)
+        } else {
+            TeamLogo(team: team, size: size)
+        }
+    }
+}
+
+/// Headshots of the players on my rosters, saved by the app in the shared App Group folder so the
+/// Live Activity can show them (it can't download). The app keeps the folder in step with the server's list.
+enum PlayerHeadshots {
+    static var folder: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: TeamLogos.appGroup)?.appendingPathComponent("Headshots", isDirectory: true)
+    }
+
+    /// Ids are Sleeper player ids, or "espn-" and ESPN's id.
+    static func validID(_ id: String) -> Bool { id.range(of: #"^(espn-)?\d{1,12}$"#, options: .regularExpression) != nil }
+
+    static func file(for id: String) -> URL? {
+        guard validID(id) else { return nil }
+        return folder?.appendingPathComponent("\(id).png")
+    }
+
+    static func image(for id: String) -> UIImage? {
+        guard let url = file(for: id) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
+
+    static func has(_ id: String) -> Bool { file(for: id).map { FileManager.default.fileExists(atPath: $0.path) } ?? false }
+
+    /// The square, at 120 pixels (the slide shows 48 points), cropped from the top so the face stays in.
+    /// Kept small because the Live Activity won't draw images much bigger than they're shown.
+    static func shrink(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+        let side: CGFloat = 120
+        let scale = max(side / image.size.width, side / image.size.height)
+        let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).pngData { _ in
+            image.draw(in: CGRect(x: (side - drawn.width) / 2, y: 0, width: drawn.width, height: drawn.height))
         }
     }
 }

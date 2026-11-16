@@ -5,7 +5,7 @@ I Formation (the code and server still use the working name Huddle) is one iPhon
 - **Scores:** every matchup this week in one list, with live and projected points, who's yet to play, and a "winning 2 of 3" summary. Tap a league to see both lineups side by side.
 - **Root For:** every player who matters to you this week across all leagues, grouped by NFL game. Each player gets a net score: the number of leagues where he's your starter minus the number where an opponent starts him. Green means root for him, red means root against, orange means you're torn.
 
-- **Feed and Live Activity:** your starters' scoring plays ("M. Nabers caught pass for 20 yards, +3.0 points") and each league's score, rotating every 30 seconds on the Feed tab, the lock screen and the Dynamic Island: play, league 1, play, league 2, and so on. When one of your starters scores a touchdown, a **Touchdown!** slide jumps the queue.
+- **Feed and Live Activity:** your starters' scoring plays ("M. Nabers caught pass for 20 yards, +3.0 points") and each league's score, rotating every 30 seconds on the Feed tab, the lock screen and the Dynamic Island: play, league 1, play, league 2, and so on. When one of your starters scores a touchdown, a **Touchdown!** slide jumps the queue. Plays show the player's headshot with his team's logo as a badge in the corner (just the logo for a defense, or a player without a picture). The server keeps headshots for everyone on your rosters, bench included, and checks for new players once a day; the app copies them onto the phone ahead of time, since a Live Activity can't download pictures.
 
 Screens refresh every 60 seconds while NFL games are live.
 
@@ -59,6 +59,8 @@ curl -X PUT -H "Authorization: Bearer $APP_TOKEN" -H 'content-type: application/
 | `GET /v1/feed` | Recent scoring plays by my starters, each league's score as a slide, and the Live Activity status |
 | `GET /v1/live` | Live Activity status: whether the server can push, auto start, and whether one is running |
 | `PUT /v1/live/settings` | `{"auto": true}` starts the Live Activity when my games kick off |
+| `GET /v1/headshots` | Headshots of every player on my rosters (bench included): `id`, `name`, `nflTeam`, `version` |
+| `GET /v1/headshots/:id` | One player's picture. The app copies them onto the phone for the Live Activity |
 | `PUT /v1/live/tokens` | The phone's push tokens: `pushToStart`, `activityId` + `activityToken`, or `ended` |
 
 ## Connect your accounts

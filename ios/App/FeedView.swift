@@ -27,6 +27,10 @@ final class FeedModel {
         do {
             let feed = try await api.feed()
             self.feed = feed
+            // A player the phone has no picture of yet (a waiver pickup, say): fetch the new list now.
+            if feed.events.contains(where: { event in event.headshot.map { id in !PlayerHeadshots.has(id) } ?? false }) {
+                Task.detached(priority: .utility) { await HeadshotSync.shared.run(api: api, soon: true) }
+            }
             live.apply(feed.liveActivity)
             refreshedAt = .now
             lastError = nil
@@ -49,6 +53,7 @@ final class FeedModel {
     /// and rotates the slide every 30 seconds.
     func run() async {
         if !fetchedLogos { fetchedLogos = true; Task.detached(priority: .utility) { await TeamLogos.downloadMissing() } }
+        if let api { Task.detached(priority: .utility) { await HeadshotSync.shared.run(api: api) } }
         while !Task.isCancelled {
             let stale = Date.now.timeIntervalSince(refreshedAt) > (feed?.window == "off" ? 300 : 25)
             if stale { await refresh() } else { await advance() }

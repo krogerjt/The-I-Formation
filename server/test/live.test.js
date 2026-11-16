@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, verify } from 'node:crypto';
 import { liveSetup } from './setup.js';
+import { eventContent } from '../src/live.js';
 import { createApp } from '../src/server.js';
 import { NFLPlays, describeKnown, describePlay, namePattern, shortName } from '../src/providers/plays.js';
 import { APNs } from '../src/apns.js';
@@ -57,6 +58,8 @@ test('the feed turns point changes into plays and queues touchdowns', async () =
   assert.equal(event.kind, 'touchdown');
   assert.equal(event.text, 'P. Mahomes threw 25-yard touchdown pass to T. Kelce');
   assert.equal(event.points, 4);
+  assert.equal(event.headshot, '4046'); // Sleeper's id, the picture the phone already has
+  assert.equal(eventContent(event).headshot, '4046');
   assert.deepEqual(event.leagues.map(l => l.leagueName), ['Dynasty Bros']); // only Sleeper's points moved
 
   // Rotation: the touchdown jumps the queue, then play / league 1 / play / league 2 / play / league 3 / play / league 1.

@@ -60,10 +60,19 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(feed.scores[1].opponentScoreText, "55.4")
         let touchdown = try XCTUnwrap(feed.events.first)
         XCTAssertEqual(touchdown.kind, .touchdown)
+        XCTAssertEqual(touchdown.headshot, "4046")
         // The app builds the same slide from an event as the server pushes to the Live Activity.
         XCTAssertEqual(touchdown.slide(), feed.current)
         XCTAssertEqual(touchdown.slide(as: .play).pointsText, "+4.0")
         XCTAssertTrue(feed.liveActivity.push)
+    }
+
+    func testHeadshotListDecodes() throws {
+        let json = #"{"updatedAt":"2026-11-08T20:00:00.000Z","players":[{"id":"4046","name":"Patrick Mahomes","nflTeam":"KC","version":"1"},{"id":"espn-123","name":"A. Rookie","nflTeam":null,"version":"2"}]}"#
+        let list = try JSONDecoder().decode(HeadshotList.self, from: Data(json.utf8))
+        XCTAssertEqual(list.players.map(\.id), ["4046", "espn-123"])
+        XCTAssertTrue(PlayerHeadshots.validID("espn-123"))
+        XCTAssertFalse(PlayerHeadshots.validID("../x"))
     }
 
     func testRotationAlternatesPlaysWithEachLeague() throws {

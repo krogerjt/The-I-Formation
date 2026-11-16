@@ -15,7 +15,7 @@ export class PlayerIndex {
   load(dump) {
     this.bySleeper = new Map(); this.byEspn = new Map(); this.byYahoo = new Map(); this.byName = new Map();
     for (const [id, p] of Object.entries(dump)) {
-      const entry = { sleeper: id, name: p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' '), position: position(p.position), nflTeam: nflTeam(p.team) };
+      const entry = { sleeper: id, espn: p.espn_id != null ? String(p.espn_id) : null, name: p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' '), position: position(p.position), nflTeam: nflTeam(p.team) };
       this.bySleeper.set(id, entry);
       if (p.espn_id != null) this.byEspn.set(String(p.espn_id), entry);
       if (p.yahoo_id != null) this.byYahoo.set(String(p.yahoo_id), entry);
@@ -47,6 +47,15 @@ export class PlayerIndex {
   }
 
   sleeperPlayer(id) { return this.bySleeper.get(String(id)); }
+
+  // Which headshot a player gets: his Sleeper id (Sleeper's CDN, with ESPN's as the fallback), or
+  // `espn-<id>` for a player only ESPN knows. Null for team defenses, which show the team logo.
+  headshotId(p) {
+    if (p.position === 'DEF') return null;
+    const key = p.key || this.keyFor(p);
+    if (key.startsWith('sleeper:')) return key.slice(8);
+    return p.ids?.espn ? `espn-${p.ids.espn}` : null;
+  }
 }
 
 function nameKey(name, pos, team) { return `${normalizeName(name)}|${pos || ''}|${team || ''}`; }
