@@ -314,3 +314,21 @@ test('points posted minutes after the play still find it, and every new play rea
   assert.deepEqual(slides.map(s => s.kind), ['touchdown', 'play', 'score', 'play']);
   assert.match(slides[1].text, /32 yards/);
 });
+
+test('points that dip and come right back aren\'t counted twice, but a drop that holds is', async () => {
+  const { feed, state, advance } = liveSetup();
+  state.plays = [{ id: '1', text: 'P.Mahomes scrambles right end to BUF 30 for 8 yards (M.Milano).' }];
+  await feed.poll();
+  const poll = async points => { state.mahomes = points; advance(31000); await feed.poll(); };
+  await poll(25.1);                          // +0.8, the scramble
+  await poll(24.3);                          // a blip
+  await poll(25.1);                          // back
+  assert.equal(feed.events.length, 1);
+  assert.equal(feed.events[0].points, 0.8);
+
+  await poll(23.1); await poll(23.1);        // a correction that holds: -2
+  state.plays.push({ id: '2', text: 'P.Mahomes up the middle to BUF 20 for 5 yards (M.Milano).' });
+  await poll(23.6);                          // +0.5 from there
+  assert.equal(feed.events[0].playId, '2');
+  assert.equal(feed.events[0].points, 0.5);
+});

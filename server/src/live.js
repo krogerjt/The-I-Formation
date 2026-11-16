@@ -23,7 +23,7 @@ export class LiveFeed {
   constructor({ aggregator, plays, players = aggregator.players, now = Date.now }) {
     Object.assign(this, { aggregator, plays, players, now });
     this.week = null;
-    this.baseline = new Map();     // `${matchupId}|${playerKey}` -> points at the last poll
+    this.baseline = new Map();     // `${matchupId}|${playerKey}` -> { points } counted so far, and a drop not yet trusted
     this.events = [];              // newest first
     this.eventPlayers = new WeakMap(); // event -> the player's key, kept off the event the phone gets
     this.pendingTouchdowns = [];
@@ -58,8 +58,16 @@ export class LiveFeed {
     for (const m of board.matchups) {
       for (const p of m.me?.players || []) {
         if (!p.starter || p.points == null) continue;
-        const key = `${m.id}|${p.key}`, before = this.baseline.get(key);
-        this.baseline.set(key, p.points);
+        const key = `${m.id}|${p.key}`, last = this.baseline.get(key), before = last?.points;
+        // A drop is a real correction (a lost fumble, a stat taken back) or a blip in the platform's data that
+        // comes right back (Sleeper once read 4.2 -> lower -> 4.2, and the rebound counted as a second 4.2).
+        // Only a drop that holds for two polls lowers the baseline, so a blip's rebound isn't new points.
+        if (before != null && p.points < before) {
+          const polls = last.drop?.points === p.points ? last.drop.polls + 1 : 1;
+          this.baseline.set(key, polls >= 2 ? { points: p.points } : { points: before, drop: { points: p.points, polls } });
+          continue;
+        }
+        this.baseline.set(key, { points: p.points });
         if (first || before == null || p.points <= before) continue;
         let gain = gains.get(p.key);
         if (!gain) gains.set(p.key, gain = { player: p, points: 0, leagues: [] });
