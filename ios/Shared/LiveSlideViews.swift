@@ -192,33 +192,29 @@ struct IslandLeading: View {
         case .play: PlayerAvatar(headshot: slide.headshot, team: slide.nflTeam, size: 24, badgeScale: 0.5)
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
-            // The share bar, with the league's name on a gray pill in the middle (its initials if the name won't fit).
-            ScoreShareBar(share: slide.myShare, height: 14)
-                .frame(width: 90)
-                .overlay {
-                    ViewThatFits(in: .horizontal) {
-                        if let name = slide.leagueName { LeaguePill(text: name) }
-                        if let short = slide.leagueShort { LeaguePill(text: short) }
-                    }
-                    // Room left so some of the bar shows on each side of the name.
-                    .padding(.horizontal, 12)
-                }
+            // The league's initials in a ring split by score share, the size of the headshot on play slides.
+            // The system sizes the compact island to the wider of its two sides, so keeping this small keeps
+            // the island snug instead of pushing out toward the clock.
+            ScoreShareBadge(slide: slide, size: 24)
         }
     }
 }
 
-/// White league name on a gray pill, laid over the compact island's share bar.
-private struct LeaguePill: View {
-    let text: String
+/// The league's initials inside a ring split by score share: green clockwise from the top for me, red for the opponent.
+struct ScoreShareBadge: View {
+    let slide: LiveSlide
+    let size: CGFloat
     var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1.5)
-            .background(Color(white: 0.25), in: Capsule())
+        ZStack {
+            ScoreShareRing(share: slide.myShare, lineWidth: size * 0.1).padding(size * 0.05)
+            Text(slide.leagueShort ?? (slide.myScore ?? 0).formatted(.number.precision(.fractionLength(0))))
+                .font(.system(size: size * 0.36, weight: .heavy))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .padding(size * 0.14)
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -247,14 +243,7 @@ struct IslandMinimal: View {
         case .touchdown: Image(systemName: "football.fill").foregroundStyle(.yellow)
         case .score:
             // Which league, inside a ring showing who's ahead and by how much.
-            ZStack {
-                ScoreShareRing(share: slide.myShare)
-                Text(slide.leagueShort ?? (slide.myScore ?? 0).formatted(.number.precision(.fractionLength(0))))
-                    .font(.system(size: 9, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.5)
-                    .padding(3)
-            }
+            ScoreShareBadge(slide: slide, size: 25)
         }
     }
 }
