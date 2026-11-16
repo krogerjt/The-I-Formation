@@ -64,7 +64,12 @@ export class NFLPlays {
       gained.push(plays[i]);
     }
     const best = bestFit(gained, name, fit || {});
-    return best ? named(best) : latest && named(latest);
+    if (best) return named(best);
+    // Matching a point change made since the last poll: when ESPN hasn't posted a play since then (its
+    // play-by-play often runs behind the fantasy points), an old play would be the wrong answer. Null says
+    // "not yet", so the caller can wait for the play to show up.
+    if (fit?.points != null && fit.since) return null;
+    return latest && named(latest);
   }
 }
 
@@ -76,7 +81,7 @@ function bestFit(plays, name, { points, scoring, credited = new Map(), since = n
   if (!plays.length) return null;
   const recent = since ? plays.filter(p => p.at == null || p.at >= since - STAT_LAG) : plays;
   let best = null, bestCost = Infinity;
-  (recent.length ? recent : plays).forEach((play, rank) => {
+  recent.forEach((play, rank) => {
     const left = (pointsFor(statsFor(play.text, name), scoring || undefined) ?? points) - (credited.get(play.id) ?? 0);
     if (credited.has(play.id) && left <= 0.05) return;
     const miss = Math.abs(left - points);
